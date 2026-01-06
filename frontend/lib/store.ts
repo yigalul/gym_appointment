@@ -109,6 +109,44 @@ export async function createTrainerUser(name: string, role: string, email: strin
     }
 }
 
+export async function createClientUser(email: string, defaultSlots: { day_of_week: number; start_time: string }[]): Promise<boolean> {
+    try {
+        const userRes = await fetch(`${API_Base}/users/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email,
+                password: 'password123',
+                role: 'client',
+                default_slots: defaultSlots
+            })
+        });
+        if (!userRes.ok) throw new Error('Failed to create user');
+        return true;
+    } catch (error) {
+        console.error(error);
+        return false;
+    }
+}
+
+export async function updateClientUser(id: number, email: string, defaultSlots: { day_of_week: number; start_time: string }[]): Promise<boolean> {
+    try {
+        const userRes = await fetch(`${API_Base}/users/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email,
+                default_slots: defaultSlots
+            })
+        });
+        if (!userRes.ok) throw new Error('Failed to update user');
+        return true;
+    } catch (error) {
+        console.error(error);
+        return false;
+    }
+}
+
 // Fetch appointments (mocked to all for now as backend doesn't filter perfectly yet)
 export async function getAppointments(): Promise<Appointment[]> {
     // In a real app we would fetch by trainer or current user

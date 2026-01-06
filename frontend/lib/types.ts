@@ -1,7 +1,15 @@
+export interface ClientDefaultSlot {
+  id?: number;
+  user_id?: number;
+  day_of_week: number;
+  start_time: string;
+}
+
 export interface User {
   id: number;
   email: string;
   role: 'admin' | 'trainer' | 'client';
+  default_slots?: ClientDefaultSlot[];
   // Trainer profile might be linked or fetched separately
 }
 

@@ -12,6 +12,18 @@ class User(Base):
 
     trainer_profile = relationship("Trainer", back_populates="user", uselist=False)
     client_appointments = relationship("Appointment", back_populates="client")
+    default_slots = relationship("ClientDefaultSlot", back_populates="client")
+
+
+class ClientDefaultSlot(Base):
+    __tablename__ = "client_default_slots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    day_of_week = Column(Integer) # 0-6
+    start_time = Column(String) # HH:MM
+
+    client = relationship("User", back_populates="default_slots")
 
 
 class Trainer(Base):

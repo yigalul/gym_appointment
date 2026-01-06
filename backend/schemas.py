@@ -2,15 +2,35 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 # --- User Schemas ---
+class ClientDefaultSlotBase(BaseModel):
+    day_of_week: int
+    start_time: str
+
+class ClientDefaultSlotCreate(ClientDefaultSlotBase):
+    pass
+
+class ClientDefaultSlot(ClientDefaultSlotBase):
+    id: int
+    user_id: int
+    
+    class Config:
+        from_attributes = True
+
 class UserBase(BaseModel):
     email: str
     role: str = "client"
 
 class UserCreate(UserBase):
     password: str
+    default_slots: List[ClientDefaultSlotCreate] = []
+
+class UserUpdate(BaseModel):
+    email: Optional[str] = None
+    default_slots: Optional[List[ClientDefaultSlotCreate]] = None
 
 class User(UserBase):
     id: int
+    default_slots: List[ClientDefaultSlot] = []
     
     class Config:
         from_attributes = True

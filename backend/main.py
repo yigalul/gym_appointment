@@ -26,6 +26,18 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+
+    if user.default_slots:
+        for slot in user.default_slots:
+            db_slot = models.ClientDefaultSlot(
+                user_id=db_user.id,
+                day_of_week=slot.day_of_week,
+                start_time=slot.start_time
+            )
+            db.add(db_slot)
+        db.commit()
+        db.refresh(db_user) # Refresh to load the relationship
+
     return db_user
 
 @app.get("/users/", response_model=List[schemas.User])
@@ -39,6 +51,32 @@ def read_user(user_id: int, db: Session = Depends(get_db)):
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+@app.put("/users/{user_id}", response_model=schemas.User)
+def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if db_user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user_update.email:
+        db_user.email = user_update.email
+    
+    if user_update.default_slots is not None:
+        # Delete existing slots
+        db.query(models.ClientDefaultSlot).filter(models.ClientDefaultSlot.user_id == user_id).delete()
+        
+        # Add new slots
+        for slot in user_update.default_slots:
+            db_slot = models.ClientDefaultSlot(
+                user_id=user_id,
+                day_of_week=slot.day_of_week,
+                start_time=slot.start_time
+            )
+            db.add(db_slot)
+            
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
 # --- Trainer Endpoints ---
 
