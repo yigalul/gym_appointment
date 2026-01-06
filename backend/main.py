@@ -238,6 +238,17 @@ def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Dep
     db.refresh(db_appointment)
     return db_appointment
 
+@app.put("/appointments/{appointment_id}/cancel", response_model=schemas.Appointment)
+def cancel_appointment(appointment_id: int, db: Session = Depends(get_db)):
+    appointment = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    
+    appointment.status = "cancelled"
+    db.commit()
+    db.refresh(appointment)
+    return appointment
+
 @app.get("/appointments/", response_model=List[schemas.Appointment])
 def read_appointments(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     appointments = db.query(models.Appointment).order_by(models.Appointment.start_time.asc()).offset(skip).limit(limit).all()

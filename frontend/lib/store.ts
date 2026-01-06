@@ -192,4 +192,17 @@ export async function createAppointment(
     }
 }
 
+export async function cancelAppointment(appointmentId: number): Promise<boolean> {
+    try {
+        const res = await fetch(`${API_Base}/appointments/${appointmentId}/cancel`, {
+            method: 'PUT',
+        });
+        if (!res.ok) throw new Error('Failed to cancel appointment');
+        return true;
+    } catch (error) {
+        console.error(error);
+        return false;
+    }
+}
+
 export const MOCK_TRAINERS: Trainer[] = [];

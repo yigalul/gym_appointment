@@ -61,7 +61,6 @@ export default function ClientDashboardPage() {
                         </div>
                     </div>
                 ))}
-                ))}
             </div>
 
             <div className="border-t border-neutral-800 pt-8">
