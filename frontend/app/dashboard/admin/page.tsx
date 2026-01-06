@@ -239,8 +239,9 @@ export default function AdminDashboardPage() {
                                     >
                                         {Array.from({ length: 14 }).map((_, i) => { // 7am to 8pm roughly
                                             const h = i + 7;
+                                            const nextH = h + 1;
                                             return (
-                                                <option key={h} value={h}>{h}:00</option>
+                                                <option key={h} value={h}>{h}:00 to {nextH}:00</option>
                                             );
                                         })}
                                     </select>

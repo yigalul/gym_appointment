@@ -191,7 +191,7 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
                                 </div>
                                 <div className="flex justify-between items-center py-2 border-b border-neutral-700">
                                     <span className="text-neutral-400">Time</span>
-                                    <span className="text-white font-medium">{selectedSlot?.start_time} - {selectedSlot?.end_time}</span>
+                                    <span className="text-white font-medium">{selectedSlot?.start_time} to {selectedSlot?.end_time}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-2">
                                     <span className="text-neutral-400">Price</span>
