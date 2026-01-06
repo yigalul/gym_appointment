@@ -5,16 +5,18 @@ import { Trainer } from '@/lib/types';
 import { Calendar, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import BookingModal from '@/components/BookingModal';
+
 export default function ClientDashboardPage() {
     const [trainers, setTrainers] = useState<Trainer[]>([]);
+    const [bookingTrainer, setBookingTrainer] = useState<Trainer | null>(null);
 
     useEffect(() => {
         getTrainers().then(setTrainers);
     }, []);
 
-    const handleBook = (trainerId: number) => {
-        // In a real app, open booking modal
-        alert(`Booking flow for trainer ${trainerId} would open here.`);
+    const handleBook = (trainer: Trainer) => {
+        setBookingTrainer(trainer);
     };
 
     return (
@@ -37,7 +39,7 @@ export default function ClientDashboardPage() {
                             <p className="text-blue-400 font-medium mb-1">{trainer.role}</p>
                             <p className="text-neutral-400 text-sm mb-4 line-clamp-2">{trainer.bio}</p>
                             <button
-                                onClick={() => handleBook(trainer.id)}
+                                onClick={() => handleBook(trainer)}
                                 className="px-4 py-2 bg-white text-black text-sm font-semibold rounded-lg hover:bg-neutral-200 transition-colors flex items-center gap-2"
                             >
                                 <Calendar className="w-4 h-4" />
@@ -47,6 +49,12 @@ export default function ClientDashboardPage() {
                     </div>
                 ))}
             </div>
+
+            <BookingModal
+                isOpen={!!bookingTrainer}
+                trainer={bookingTrainer}
+                onClose={() => setBookingTrainer(null)}
+            />
         </div>
     );
 }

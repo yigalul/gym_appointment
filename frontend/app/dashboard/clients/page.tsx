@@ -1,6 +1,6 @@
 'use client';
 
-import { getAppointments, MOCK_APPOINTMENTS } from '@/lib/store';
+import { getAppointments } from '@/lib/store';
 import { Appointment } from '@/lib/types';
 import { Mail, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -15,26 +15,26 @@ export default function ClientsPage() {
     const [clients, setClients] = useState<Client[]>([]);
 
     useEffect(() => {
-        // In a real scenario, we'd fetch this from the API
-        // For now, derive from appointments
-        const uniqueClients: Record<string, Client> = {};
+        getAppointments().then(appointments => {
+            const uniqueClients: Record<string, Client> = {};
 
-        MOCK_APPOINTMENTS.forEach(app => {
-            if (!uniqueClients[app.client_email]) {
-                uniqueClients[app.client_email] = {
-                    name: app.client_name,
-                    email: app.client_email,
-                    lastSession: app.start_time
-                };
-            } else {
-                // Update last session if this one is later
-                if (new Date(app.start_time) > new Date(uniqueClients[app.client_email].lastSession)) {
-                    uniqueClients[app.client_email].lastSession = app.start_time;
+            appointments.forEach(app => {
+                if (!uniqueClients[app.client_email]) {
+                    uniqueClients[app.client_email] = {
+                        name: app.client_name,
+                        email: app.client_email,
+                        lastSession: app.start_time
+                    };
+                } else {
+                    // Update last session if this one is later
+                    if (new Date(app.start_time) > new Date(uniqueClients[app.client_email].lastSession)) {
+                        uniqueClients[app.client_email].lastSession = app.start_time;
+                    }
                 }
-            }
-        });
+            });
 
-        setClients(Object.values(uniqueClients));
+            setClients(Object.values(uniqueClients));
+        });
     }, []);
 
     return (

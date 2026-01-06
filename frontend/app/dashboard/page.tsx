@@ -1,12 +1,13 @@
 'use client';
 
-import { getTrainers, MOCK_APPOINTMENTS } from '@/lib/store';
+import { getTrainers, getAppointments } from '@/lib/store';
 import { Calendar, Users, Clock } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Trainer } from '@/lib/types';
+import { Trainer, Appointment } from '@/lib/types';
 
 export default function DashboardPage() {
     const [trainer, setTrainer] = useState<Trainer | null>(null);
+    const [appointments, setAppointments] = useState<Appointment[]>([]);
 
     useEffect(() => {
         // Hardcoded ID 1 for "Logged In" status
@@ -14,15 +15,15 @@ export default function DashboardPage() {
             // In a real app we'd use auth context, here we just pick the first one if available
             if (trainers.length > 0) setTrainer(trainers[0]);
         });
+
+        getAppointments().then(setAppointments);
     }, []);
 
     if (!trainer) {
         return <div className="p-8 text-neutral-400">Loading dashboard...</div>;
     }
 
-    // Mock appointments need to be updated or filtered by number ID
-    // Since MOCK_APPOINTMENTS is currently empty logic handles it
-    const upcomingAppointments = MOCK_APPOINTMENTS.filter(app => app.trainer_id === trainer.id);
+    const upcomingAppointments = appointments.filter(app => app.trainer_id === trainer.id);
 
     return (
         <div className="space-y-8">

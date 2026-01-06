@@ -61,6 +61,9 @@ def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Dep
     if user_update.email:
         db_user.email = user_update.email
     
+    if user_update.weekly_workout_limit is not None:
+        db_user.weekly_workout_limit = user_update.weekly_workout_limit
+    
     if user_update.default_slots is not None:
         # Delete existing slots
         db.query(models.ClientDefaultSlot).filter(models.ClientDefaultSlot.user_id == user_id).delete()
@@ -124,6 +127,20 @@ def read_trainer(trainer_id: int, db: Session = Depends(get_db)):
 
 @app.post("/trainers/{trainer_id}/availability/", response_model=schemas.Availability)
 def create_availability(trainer_id: int, availability: schemas.AvailabilityBase, db: Session = Depends(get_db)):
+    # 1. Validate Day (Sunday=0 to Friday=5, Saturday=6 is not allowed)
+    if availability.day_of_week == 6:
+        raise HTTPException(status_code=400, detail="Trainers cannot schedule on Saturdays.")
+
+    # 2. Validate Time Slots (Morning: 07:00-12:00, Evening: 15:00-20:00)
+    valid_morning = (availability.start_time == "07:00" and availability.end_time == "12:00")
+    valid_evening = (availability.start_time == "15:00" and availability.end_time == "20:00")
+
+    if not (valid_morning or valid_evening):
+        raise HTTPException(
+            status_code=400, 
+            detail="Invalid time slot. Must be Morning (07:00-12:00) or Evening (15:00-20:00)."
+        )
+
     db_availability = models.Availability(**availability.dict(), trainer_id=trainer_id)
     db.add(db_availability)
     db.commit()
@@ -134,24 +151,69 @@ def create_availability(trainer_id: int, availability: schemas.AvailabilityBase,
 
 @app.post("/appointments/", response_model=schemas.Appointment)
 def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Depends(get_db)):
-    # 1. Custom Restriction: Max 3 total appointments in the gym at this time
+    # 1. Gym Capacity: Max 6 appointments total per slot
     global_count = db.query(models.Appointment).filter(
         models.Appointment.start_time == appointment.start_time,
         models.Appointment.status != "cancelled"
     ).count()
     
-    if global_count >= 3:
-         raise HTTPException(status_code=400, detail="Gym capacity reached for this time slot (Max 3 sessions).")
+    if global_count >= 6:
+         raise HTTPException(status_code=400, detail="Gym capacity reached for this time slot (Max 6 clients).")
 
-    # 2. Custom Restriction: Max 2 appointments per trainer per slot
-    trainer_count = db.query(models.Appointment).filter(
+    # 2. Trainer Capacity: Max 3 unique trainers per slot
+    # Check if this trainer is already working
+    trainer_working = db.query(models.Appointment).filter(
         models.Appointment.trainer_id == appointment.trainer_id,
         models.Appointment.start_time == appointment.start_time,
-         models.Appointment.status != "cancelled"
+        models.Appointment.status != "cancelled"
+    ).first()
+
+    if not trainer_working:
+        # If trainer is not yet working, check if adding them exceeds 3 trainers limit
+        active_trainers_count = db.query(models.Appointment.trainer_id).filter(
+            models.Appointment.start_time == appointment.start_time,
+            models.Appointment.status != "cancelled"
+        ).distinct().count()
+
+        if active_trainers_count >= 3:
+            raise HTTPException(status_code=400, detail="Shift capacity reached (Max 3 trainers per shift).")
+
+    # 3. Weekly Workout Limit
+    from datetime import datetime, timedelta
+    
+    # Parse appointment date
+    try:
+        appt_date = datetime.fromisoformat(appointment.start_time)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format")
+
+    # Calculate start and end of the week (Monday to Sunday)
+    start_of_week = appt_date - timedelta(days=appt_date.weekday())
+    start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_week = start_of_week + timedelta(days=7)
+
+    # Get user to check limit (assuming client_email is unique identifier for now, or use client_id if available)
+    # Ideally should use client_id, but current schema uses user_id generally. 
+    # Let's find user by email since we have it in payload
+    client_user = db.query(models.User).filter(models.User.email == appointment.client_email).first()
+    
+    if not client_user:
+        # Fallback or create? For now assume user exists if using the UI
+        # Should probably strict fail in real app
+        user_limit = 3 # Default fallback
+    else:
+        user_limit = client_user.weekly_workout_limit
+
+    # Count user's appointments in this week
+    weekly_count = db.query(models.Appointment).filter(
+        models.Appointment.client_email == appointment.client_email,
+        models.Appointment.status != "cancelled",
+        models.Appointment.start_time >= start_of_week.isoformat(),
+        models.Appointment.start_time < end_of_week.isoformat()
     ).count()
 
-    if trainer_count >= 2:
-        raise HTTPException(status_code=400, detail="Trainer is fully booked for this time slot (Max 2 clients).")
+    if weekly_count >= user_limit:
+        raise HTTPException(status_code=400, detail=f"Weekly workout limit reached ({user_limit} sessions/week).")
 
     db_appointment = models.Appointment(**appointment.dict())
     db.add(db_appointment)

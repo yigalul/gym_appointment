@@ -9,6 +9,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
     role = Column(String)  # 'admin', 'trainer', 'client'
+    weekly_workout_limit = Column(Integer, default=3)
 
     trainer_profile = relationship("Trainer", back_populates="user", uselist=False)
     client_appointments = relationship("Appointment", back_populates="client")

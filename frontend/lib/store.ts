@@ -147,26 +147,47 @@ export async function updateClientUser(id: number, email: string, defaultSlots: 
     }
 }
 
-// Fetch appointments (mocked to all for now as backend doesn't filter perfectly yet)
+// Fetch appointments
 export async function getAppointments(): Promise<Appointment[]> {
-    // In a real app we would fetch by trainer or current user
-    // For now, let's just use the mock until I implement the endpoint or if I missed it
-    // Wait, I implemented POST /appointments, but did I implement GET?
-    // Let's check main.py...
-    // I see: 
-    // @app.post("/appointments/", ...)
-    // But I do NOT see a GET /appointments in the main.py I wrote earlier.
-    // So I need to add that to backend first if I want to use real data.
-    // Or I can stick to MOCK_APPOINTMENTS for now as per the plan "Data Persistence... will be mocked" 
-    // BUT the user asked for a python backend, so I should probably make it real.
+    try {
+        const res = await fetch(`${API_Base}/appointments/`);
+        if (!res.ok) throw new Error('Failed to fetch appointments');
+        return res.json();
+    } catch (error) {
+        console.error(error);
+        return [];
+    }
+}
 
-    // For this step, I'll return the mock but plan to fix the backend endpoint next.
-    return MOCK_APPOINTMENTS;
+export async function createAppointment(
+    trainerId: number,
+    startTime: string, // ISO String
+    clientName: string,
+    clientEmail: string
+): Promise<boolean> {
+    try {
+        const res = await fetch(`${API_Base}/appointments/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                trainer_id: trainerId,
+                client_name: clientName,
+                client_email: clientEmail,
+                start_time: startTime,
+                status: 'confirmed' // Or pending, depending on logic
+            })
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.detail || 'Failed to create appointment');
+        }
+        return true;
+    } catch (error) {
+        console.error(error);
+        alert(error instanceof Error ? error.message : 'Booking failed');
+        return false;
+    }
 }
 
 export const MOCK_TRAINERS: Trainer[] = [];
-
-export const MOCK_APPOINTMENTS: Appointment[] = [
-    { id: 1, trainer_id: 1, client_name: 'Alice Smith', client_email: 'alice@example.com', start_time: '2023-10-27T10:00:00', status: 'confirmed' },
-    { id: 2, trainer_id: 1, client_name: 'Bob Jones', client_email: 'bob@example.com', start_time: '2023-10-28T14:00:00', status: 'pending' }
-];

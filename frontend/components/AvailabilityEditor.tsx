@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Availability } from '@/lib/types';
 import { Plus, X } from 'lucide-react';
 
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 interface AvailabilityEditorProps {
     initialAvailability: Availability[];
@@ -14,14 +14,13 @@ interface AvailabilityEditorProps {
 export default function AvailabilityEditor({ initialAvailability, onSave }: AvailabilityEditorProps) {
     const [availabilities, setAvailabilities] = useState<Availability[]>(initialAvailability);
     const [newDay, setNewDay] = useState(1);
-    const [newStart, setNewStart] = useState('09:00');
-    const [newEnd, setNewEnd] = useState('17:00');
+    const [shift, setShift] = useState<'morning' | 'evening'>('morning');
 
     const addSlot = () => {
         const newSlot: Availability = {
             day_of_week: newDay,
-            start_time: newStart,
-            end_time: newEnd,
+            start_time: shift === 'morning' ? '07:00' : '15:00',
+            end_time: shift === 'morning' ? '12:00' : '20:00',
         };
         const updated = [...availabilities, newSlot];
         setAvailabilities(updated);
@@ -50,23 +49,17 @@ export default function AvailabilityEditor({ initialAvailability, onSave }: Avai
                     </select>
                 </div>
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-neutral-400">Start Time</label>
-                    <input
-                        type="time"
-                        value={newStart}
-                        onChange={(e) => setNewStart(e.target.value)}
-                        className="block w-32 bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
+                    <label className="text-sm font-medium text-neutral-400">Shift</label>
+                    <select
+                        value={shift}
+                        onChange={(e) => setShift(e.target.value as 'morning' | 'evening')}
+                        className="block w-48 bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                        <option value="morning">Morning (07:00 - 12:00)</option>
+                        <option value="evening">Evening (15:00 - 20:00)</option>
+                    </select>
                 </div>
-                <div className="space-y-2">
-                    <label className="text-sm font-medium text-neutral-400">End Time</label>
-                    <input
-                        type="time"
-                        value={newEnd}
-                        onChange={(e) => setNewEnd(e.target.value)}
-                        className="block w-32 bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                </div>
+
                 <button
                     onClick={addSlot}
                     className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-md flex items-center gap-2 transition-colors"
@@ -86,7 +79,10 @@ export default function AvailabilityEditor({ initialAvailability, onSave }: Avai
                         <div key={idx} className="flex justify-between items-center bg-neutral-900 p-4 rounded-lg border border-neutral-800">
                             <span className="font-medium text-white">{DAYS[slot.day_of_week]}</span>
                             <div className="flex items-center gap-4">
-                                <span className="text-neutral-400 font-mono text-sm">{slot.start_time} - {slot.end_time}</span>
+                                <span className={`font-mono text-sm px-2 py-1 rounded ${slot.start_time === '07:00' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-indigo-500/10 text-indigo-500'
+                                    }`}>
+                                    {slot.start_time === '07:00' ? 'Morning Shift' : 'Evening Shift'} ({slot.start_time} - {slot.end_time})
+                                </span>
                                 <button
                                     onClick={() => removeSlot(idx)}
                                     className="p-1 hover:bg-red-500/20 text-neutral-500 hover:text-red-400 rounded transition-colors"
