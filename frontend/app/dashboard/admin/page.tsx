@@ -351,7 +351,7 @@ export default function AdminDashboardPage() {
                             </button>
                         </div>
                     </form>
-            </div>
+                </div>
         )
     }
 
