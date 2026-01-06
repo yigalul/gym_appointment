@@ -32,9 +32,9 @@ export default function LoginPage() {
         if (user) {
             // For simplicity in this demo, we accept the correct password OR just the user existence if no password provided in UI logic before
             // checking basic hardcoded passwords for the demo roles:
-            const isValid = (user.role === 'admin' && password === 'adminpassword') ||
-                (user.role === 'trainer' && password === 'trainerpassword') ||
-                (user.role === 'client' && (password === 'clientpassword' || password === 'password123' || password === 'GymStrong2026!'));
+            // In a real app, strict server-side validation.
+            // For this demo, we can just check against the universal strong password
+            const isValid = password === 'GymStrong2026!';
 
             if (isValid) {
                 loginUser(user);
@@ -100,29 +100,41 @@ export default function LoginPage() {
                         Sign In
                     </button>
 
-                    <div className="mt-4 p-4 bg-neutral-950/50 rounded text-xs text-neutral-500 space-y-2">
-                        <p className="font-semibold mb-2">Click to auto-fill Demo Credentials:</p>
-                        <button
-                            type="button"
-                            onClick={() => { setEmail('admin@gym.com'); setPassword('adminpassword'); }}
-                            className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors"
-                        >
-                            <span className="text-blue-400">Admin:</span> admin@gym.com / adminpassword
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => { setEmail('sarah@gym.com'); setPassword('trainerpassword'); }}
-                            className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors"
-                        >
-                            <span className="text-purple-400">Trainer:</span> sarah@gym.com / trainerpassword
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => { setEmail('client@example.com'); setPassword('clientpassword'); }}
-                            className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors"
-                        >
-                            <span className="text-green-400">Client:</span> client@example.com / clientpassword
-                        </button>
+                    <div className="mt-4 p-4 bg-neutral-950/50 rounded text-xs text-neutral-500 space-y-2 max-h-48 overflow-y-auto">
+                        <p className="font-semibold mb-2">Click to auto-fill Demo Credentials (Password: GymStrong2026!):</p>
+
+                        <div className="space-y-1">
+                            <p className="text-blue-400 font-bold">Admin</p>
+                            <button type="button" onClick={() => { setEmail('admin@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
+                                Admin (admin@gym.com)
+                            </button>
+                        </div>
+
+                        <div className="space-y-1">
+                            <p className="text-purple-400 font-bold">Trainers</p>
+                            <button type="button" onClick={() => { setEmail('sarah@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
+                                Sarah (sarah@gym.com)
+                            </button>
+                            <button type="button" onClick={() => { setEmail('mike@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
+                                Mike (mike@gym.com)
+                            </button>
+                        </div>
+
+                        <div className="space-y-1">
+                            <p className="text-green-400 font-bold">Clients</p>
+                            <button type="button" onClick={() => { setEmail('client@example.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
+                                Demo Client (client@example.com)
+                            </button>
+                            <button type="button" onClick={() => { setEmail('alice@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
+                                Alice (alice@gym.com)
+                            </button>
+                            <button type="button" onClick={() => { setEmail('bob@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
+                                Bob (bob@gym.com)
+                            </button>
+                            <button type="button" onClick={() => { setEmail('charlie@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
+                                Charlie (charlie@gym.com)
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>
