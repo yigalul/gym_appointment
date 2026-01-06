@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Trainer, Availability } from '@/lib/types';
-import { createAppointment, getCurrentUser } from '@/lib/store';
+import { createAppointment, getCurrentUser, getAppointments } from '@/lib/store';
 import { X, Calendar, Clock, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface BookingModalProps {
@@ -82,12 +82,52 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
         }
     };
 
-    // Filter slots based on selected date's day of week
+    const [appointments, setAppointments] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (isOpen) {
+            // Fetch appointments to calculate availability
+            // In a real app, we might query by date range
+            getAppointments().then(data => setAppointments(data));
+        }
+    }, [isOpen]);
+
+    // Filter slots based on selected date's day of week AND availability
     const getFilteredSlots = () => {
         if (!date) return [];
         const dateObj = new Date(date);
         const dayOfWeek = dateObj.getDay(); // 0-6
-        return availableSlots.filter(slot => slot.day_of_week === dayOfWeek);
+        const user = getCurrentUser();
+
+        // 1. Filter by Day of Week
+        let slots = availableSlots.filter(slot => slot.day_of_week === dayOfWeek);
+
+        // 2. Filter out execution-time full slots
+        slots = slots.filter(slot => {
+            const slotTimeISO = `${date}T${slot.start_time}:00`;
+
+            // Check Trainer Capacity (Max 2)
+            const trainerApps = appointments.filter(a =>
+                a.trainer_id === trainer.id &&
+                a.start_time === slotTimeISO &&
+                a.status !== 'cancelled'
+            );
+            if (trainerApps.length >= 2) return false;
+
+            // Check Duplicate Booking (User already booked)
+            if (user) {
+                const userBooked = appointments.some(a =>
+                    a.client_email === user.email &&
+                    a.start_time === slotTimeISO &&
+                    a.status !== 'cancelled'
+                );
+                if (userBooked) return false;
+            }
+
+            return true;
+        });
+
+        return slots;
     };
 
     const filteredSlots = getFilteredSlots();
