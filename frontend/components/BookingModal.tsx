@@ -64,20 +64,21 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
         // Time: HH:mm
         const startTimeISO = `${date}T${selectedSlot?.start_time}:00`;
 
-        const success = await createAppointment(
-            trainer.id,
-            startTimeISO,
-            user.email?.split('@')[0] || 'Unknown Client', // Fallback name
-            user.email
-        );
+        try {
+            await createAppointment(
+                trainer.id,
+                startTimeISO,
+                user.email?.split('@')[0] || 'Unknown Client', // Fallback name
+                user.email
+            );
 
-        setIsSubmitting(false);
-
-        if (success) {
+            // If we get here, it succeeded
+            setIsSubmitting(false);
             alert('Booking Successful!');
             onClose();
-        } else {
-            setError('Booking failed. Please try again.');
+        } catch (err) {
+            setIsSubmitting(false);
+            setError(err instanceof Error ? err.message : 'Booking failed. Please try again.');
         }
     };
 
@@ -156,8 +157,8 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
                                                 key={slot.id} // Assuming slot has ID, or use combination
                                                 onClick={() => setSelectedSlot(slot)}
                                                 className={`p-3 rounded-lg border text-sm font-medium transition-all ${selectedSlot === slot
-                                                        ? 'bg-blue-500/20 border-blue-500 text-blue-400'
-                                                        : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:border-neutral-500'
+                                                    ? 'bg-blue-500/20 border-blue-500 text-blue-400'
+                                                    : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:border-neutral-500'
                                                     }`}
                                             >
                                                 {slot.start_time} - {slot.end_time}

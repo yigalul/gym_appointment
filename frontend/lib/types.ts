@@ -9,6 +9,7 @@ export interface User {
   id: number;
   email: string;
   role: 'admin' | 'trainer' | 'client';
+  weekly_workout_limit?: number;
   default_slots?: ClientDefaultSlot[];
   // Trainer profile might be linked or fetched separately
 }

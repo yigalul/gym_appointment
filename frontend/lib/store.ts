@@ -109,7 +109,7 @@ export async function createTrainerUser(name: string, role: string, email: strin
     }
 }
 
-export async function createClientUser(email: string, defaultSlots: { day_of_week: number; start_time: string }[]): Promise<boolean> {
+export async function createClientUser(email: string, defaultSlots: { day_of_week: number; start_time: string }[], weeklyWorkoutLimit: number = 3): Promise<boolean> {
     try {
         const userRes = await fetch(`${API_Base}/users/`, {
             method: 'POST',
@@ -118,7 +118,8 @@ export async function createClientUser(email: string, defaultSlots: { day_of_wee
                 email,
                 password: 'password123',
                 role: 'client',
-                default_slots: defaultSlots
+                default_slots: defaultSlots,
+                weekly_workout_limit: weeklyWorkoutLimit
             })
         });
         if (!userRes.ok) throw new Error('Failed to create user');
@@ -129,14 +130,15 @@ export async function createClientUser(email: string, defaultSlots: { day_of_wee
     }
 }
 
-export async function updateClientUser(id: number, email: string, defaultSlots: { day_of_week: number; start_time: string }[]): Promise<boolean> {
+export async function updateClientUser(id: number, email: string, defaultSlots: { day_of_week: number; start_time: string }[], weeklyWorkoutLimit: number): Promise<boolean> {
     try {
         const userRes = await fetch(`${API_Base}/users/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 email,
-                default_slots: defaultSlots
+                default_slots: defaultSlots,
+                weekly_workout_limit: weeklyWorkoutLimit
             })
         });
         if (!userRes.ok) throw new Error('Failed to update user');
@@ -185,8 +187,8 @@ export async function createAppointment(
         return true;
     } catch (error) {
         console.error(error);
-        alert(error instanceof Error ? error.message : 'Booking failed');
-        return false;
+        if (error instanceof Error) throw error;
+        throw new Error('Booking failed due to an unknown error');
     }
 }
 

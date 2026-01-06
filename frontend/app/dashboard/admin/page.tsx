@@ -22,11 +22,12 @@ export default function AdminDashboardPage() {
 
     // Client Form
     const [clientEmail, setClientEmail] = useState('');
+    const [clientWeeklyLimit, setClientWeeklyLimit] = useState(3);
     const [defaultSlots, setDefaultSlots] = useState<{ day_of_week: number; start_time: string }[]>([]);
 
     // Slot Inputs
     const [slotDay, setSlotDay] = useState(1);
-    const [slotTime, setSlotTime] = useState('09:00');
+    const [slotHour, setSlotHour] = useState(9); // 0-23
 
     const refreshData = () => {
         getUsers().then(setUsers);
@@ -40,7 +41,9 @@ export default function AdminDashboardPage() {
     const resetForms = () => {
         setNewName('');
         setNewEmail('');
+        setNewEmail('');
         setClientEmail('');
+        setClientWeeklyLimit(3);
         setDefaultSlots([]);
         setIsAdding(false);
         setIsEditing(false);
@@ -61,7 +64,7 @@ export default function AdminDashboardPage() {
 
     const handleAddClient = async (e: React.FormEvent) => {
         e.preventDefault();
-        const success = await createClientUser(clientEmail, defaultSlots);
+        const success = await createClientUser(clientEmail, defaultSlots, clientWeeklyLimit);
         if (success) {
             alert('Client added successfully!');
             resetForms();
@@ -74,7 +77,7 @@ export default function AdminDashboardPage() {
     const handleUpdateClient = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingUserId) return;
-        const success = await updateClientUser(editingUserId, clientEmail, defaultSlots);
+        const success = await updateClientUser(editingUserId, clientEmail, defaultSlots, clientWeeklyLimit);
         if (success) {
             alert('Client updated successfully!');
             resetForms();
@@ -87,6 +90,7 @@ export default function AdminDashboardPage() {
     const startEditClient = (user: User) => {
         setEditingUserId(user.id);
         setClientEmail(user.email);
+        setClientWeeklyLimit(user.weekly_workout_limit || 3);
         setDefaultSlots(user.default_slots || []);
         setUserType('client');
         setIsEditing(true);
@@ -94,7 +98,8 @@ export default function AdminDashboardPage() {
     };
 
     const addSlot = () => {
-        setDefaultSlots([...defaultSlots, { day_of_week: slotDay, start_time: slotTime }]);
+        const timeString = `${slotHour.toString().padStart(2, '0')}:00`;
+        setDefaultSlots([...defaultSlots, { day_of_week: slotDay, start_time: timeString }]);
     };
 
     const removeSlot = (index: number) => {
@@ -203,6 +208,14 @@ export default function AdminDashboardPage() {
                                     value={clientEmail} onChange={e => setClientEmail(e.target.value)}
                                     className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                                 />
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs text-neutral-400">Weekly Workout Limit</label>
+                                    <input
+                                        type="number" min="1" max="7" required
+                                        value={clientWeeklyLimit} onChange={e => setClientWeeklyLimit(Number(e.target.value))}
+                                        className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                    />
+                                </div>
                             </div>
 
                             <div className="p-4 bg-neutral-900/50 rounded-lg border border-neutral-700">
@@ -220,11 +233,17 @@ export default function AdminDashboardPage() {
                                         <option value={5}>Friday</option>
                                         <option value={6}>Saturday</option>
                                     </select>
-                                    <input
-                                        type="time"
-                                        value={slotTime} onChange={e => setSlotTime(e.target.value)}
+                                    <select
+                                        value={slotHour} onChange={e => setSlotHour(Number(e.target.value))}
                                         className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-blue-500"
-                                    />
+                                    >
+                                        {Array.from({ length: 14 }).map((_, i) => { // 7am to 8pm roughly
+                                            const h = i + 7;
+                                            return (
+                                                <option key={h} value={h}>{h}:00</option>
+                                            );
+                                        })}
+                                    </select>
                                     <button
                                         type="button" onClick={addSlot}
                                         className="p-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg transition-colors"
