@@ -1,9 +1,8 @@
-'use client';
-
 import { useState, useEffect } from 'react';
 import { Trainer, Availability } from '@/lib/types';
 import { createAppointment, getCurrentUser, getAppointments } from '@/lib/store';
 import { X, Calendar, Clock, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { startOfWeek, endOfWeek, eachDayOfInterval, format, addDays, subDays, isSameDay, parseISO, isBefore, startOfToday } from 'date-fns';
 
 interface BookingModalProps {
     isOpen: boolean;
@@ -13,24 +12,22 @@ interface BookingModalProps {
 
 export default function BookingModal({ isOpen, onClose, trainer }: BookingModalProps) {
     const [step, setStep] = useState<'select' | 'preview'>('select');
-    const [date, setDate] = useState<string>('');
-    const [selectedSlot, setSelectedSlot] = useState<Availability | null>(null);
+    const [selectedSlot, setSelectedSlot] = useState<{ date: Date, startTime: string } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [appointments, setAppointments] = useState<any[]>([]);
 
+    // Calendar State
+    const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
+
     useEffect(() => {
         if (!isOpen) {
             setStep('select');
-            setDate('');
             setSelectedSlot(null);
             setError('');
         } else {
-            // Set default date to today or next available? 
-            // For simplicity, user picks date.
-            const today = new Date().toISOString().split('T')[0];
-            setDate(today);
-
+            // Reset to current week when opening
+            setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
             // Fetch appointments to calculate availability
             getAppointments().then(data => setAppointments(data));
         }
@@ -38,19 +35,22 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
 
     if (!isOpen || !trainer) return null;
 
-    const availableSlots = trainer.availabilities; // Need to filter by day of week of selected date
+    // Calendar Helpers
+    const weekDays = eachDayOfInterval({
+        start: currentWeekStart,
+        end: endOfWeek(currentWeekStart, { weekStartsOn: 1 })
+    });
+    const timeSlots = Array.from({ length: 15 }, (_, i) => i + 7); // 7am to 9pm
 
-    const handleNext = () => {
-        if (!selectedSlot || !date) {
-            setError('Please select a date and time slot.');
-            return;
-        }
+    const handleSelectSlot = (date: Date, startTime: string) => {
+        setSelectedSlot({ date, startTime });
         setStep('preview');
         setError('');
     };
 
     const handleBack = () => {
         setStep('select');
+        setSelectedSlot(null);
     };
 
     const handleConfirm = async () => {
@@ -60,23 +60,23 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
             return;
         }
 
+        if (!selectedSlot) return;
+
         setIsSubmitting(true);
         setError('');
 
         // Combine date and time to ISO string
-        // Date: YYYY-MM-DD
-        // Time: HH:mm
-        const startTimeISO = `${date}T${selectedSlot?.start_time}:00`;
+        const dateStr = format(selectedSlot.date, 'yyyy-MM-dd');
+        const startTimeISO = `${dateStr}T${selectedSlot.startTime}:00`;
 
         try {
             await createAppointment(
                 trainer.id,
                 startTimeISO,
-                user.email?.split('@')[0] || 'Unknown Client', // Fallback name
+                user.email?.split('@')[0] || 'Unknown Client',
                 user.email
             );
 
-            // If we get here, it succeeded
             setIsSubmitting(false);
             alert('Booking Successful!');
             onClose();
@@ -86,69 +86,61 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
         }
     };
 
-    // Filter slots based on selected date's day of week AND availability
-    const getFilteredSlots = () => {
-        if (!date) return [];
-        const dateObj = new Date(date);
-        const dayOfWeek = dateObj.getDay(); // 0-6
+    const isSlotAvailable = (day: Date, hour: number) => {
+        // 1. Basic Availability (Trainer's schedule)
+        const dayOfWeek = day.getDay(); // 0-6
+        const hourStr = hour.toString().padStart(2, '0') + ':00';
+
+        const validSlot = trainer.availabilities.find(
+            s => s.day_of_week === dayOfWeek && s.start_time.startsWith(hour.toString().padStart(2, '0'))
+        );
+
+        if (!validSlot) return 'unavailable'; // Trainer not working
+
+        // 2. Date Check (Cannot book past)
+        if (isBefore(day, startOfToday())) return 'unavailable';
+
+        const slotTimeISO = `${format(day, 'yyyy-MM-dd')}T${hourStr}`;
+
+        // 3. Trainer Capacity
+        const trainerApps = appointments.filter(a =>
+            a.trainer_id === trainer.id &&
+            a.start_time === slotTimeISO &&
+            a.status !== 'cancelled'
+        );
+        if (trainerApps.length >= 2) return 'booked'; // Full
+
+        // 4. User Duplicate
         const user = getCurrentUser();
-
-        // 1. Filter by Day of Week
-        let slots = availableSlots.filter(slot => slot.day_of_week === dayOfWeek);
-
-        // 2. Filter out execution-time full slots
-        slots = slots.filter(slot => {
-            const slotTimeISO = `${date}T${slot.start_time}:00`;
-
-            // Check Trainer Capacity (Max 2)
-            const trainerApps = appointments.filter(a =>
-                a.trainer_id === trainer.id &&
+        if (user) {
+            const userBooked = appointments.some(a =>
+                a.client_email === user.email &&
                 a.start_time === slotTimeISO &&
                 a.status !== 'cancelled'
             );
-            if (trainerApps.length >= 2) return false;
+            if (userBooked) return 'booked'; // Already booked
+        }
 
-            // Check Duplicate Booking (User already booked)
-            if (user) {
-                const userBooked = appointments.some(a =>
-                    a.client_email === user.email &&
-                    a.start_time === slotTimeISO &&
-                    a.status !== 'cancelled'
-                );
-                if (userBooked) return false;
-            }
-
-            return true;
-        });
-
-        return slots;
+        return 'available';
     };
-
-    const filteredSlots = getFilteredSlots();
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
 
                 {/* Header */}
                 <div className="p-4 border-b border-neutral-800 flex items-center justify-between bg-neutral-900/50">
                     <h2 className="text-xl font-bold text-white flex items-center gap-2">
                         <Calendar className="w-5 h-5 text-blue-500" />
-                        {step === 'select' ? 'Book Session' : 'Confirm Booking'}
+                        {step === 'select' ? `Book with ${trainer.name}` : 'Confirm Booking'}
                     </h2>
                     <button onClick={onClose} className="p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
-                <div className="p-6">
-                    {/* Progress Steps */}
-                    <div className="flex items-center gap-2 mb-6 text-sm">
-                        <span className={`font-semibold ${step === 'select' ? 'text-blue-500' : 'text-neutral-500'}`}>1. Select Time</span>
-                        <ChevronRight className="w-4 h-4 text-neutral-600" />
-                        <span className={`font-semibold ${step === 'preview' ? 'text-blue-500' : 'text-neutral-500'}`}>2. Preview & Confirm</span>
-                    </div>
-
+                <div className="flex-1 overflow-y-auto p-6">
+                    {/* Error Message */}
                     {error && (
                         <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-sm">
                             {error}
@@ -156,63 +148,70 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
                     )}
 
                     {step === 'select' ? (
-                        <div className="space-y-6">
-                            {/* Trainer Info */}
-                            <div className="flex items-center gap-4 p-3 bg-neutral-800/50 rounded-xl">
-                                <img src={trainer.photo_url} alt={trainer.name} className="w-12 h-12 rounded-full object-cover" />
-                                <div>
-                                    <p className="text-sm text-neutral-400">Trainer</p>
-                                    <h3 className="font-bold text-white">{trainer.name}</h3>
-                                </div>
+                        <div className="space-y-4">
+                            {/* Calendar Navigation */}
+                            <div className="flex items-center justify-between mb-4 bg-neutral-800/30 p-3 rounded-xl border border-neutral-800">
+                                <button onClick={() => setCurrentWeekStart(subDays(currentWeekStart, 7))} className="p-2 hover:bg-neutral-700 rounded-lg text-neutral-400 hover:text-white">
+                                    <ChevronLeft className="w-5 h-5" />
+                                </button>
+                                <span className="text-white font-medium">
+                                    {format(weekDays[0], 'MMM d')} - {format(weekDays[6], 'MMM d, yyyy')}
+                                </span>
+                                <button onClick={() => setCurrentWeekStart(addDays(currentWeekStart, 7))} className="p-2 hover:bg-neutral-700 rounded-lg text-neutral-400 hover:text-white">
+                                    <ChevronRight className="w-5 h-5" />
+                                </button>
                             </div>
 
-                            {/* Date Picker */}
-                            <div>
-                                <label className="block text-sm font-medium text-neutral-400 mb-2">Select Date</label>
-                                <input
-                                    type="date"
-                                    value={date}
-                                    onChange={(e) => setDate(e.target.value)}
-                                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                                />
-                            </div>
-
-                            {/* Time Slots */}
-                            <div>
-                                <label className="block text-sm font-medium text-neutral-400 mb-2">Available Slots</label>
-                                {filteredSlots.length === 0 ? (
-                                    <div className="text-center p-4 border border-dashed border-neutral-800 rounded-lg text-neutral-500">
-                                        No slots available for this date.
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {filteredSlots.map(slot => (
-                                            <button
-                                                key={slot.id} // Assuming slot has ID, or use combination
-                                                onClick={() => setSelectedSlot(slot)}
-                                                className={`p-3 rounded-lg border text-sm font-medium transition-all ${selectedSlot === slot
-                                                    ? 'bg-blue-500/20 border-blue-500 text-blue-400'
-                                                    : 'bg-neutral-800 border-neutral-700 text-neutral-300 hover:border-neutral-500'
-                                                    }`}
-                                            >
-                                                {slot.start_time} - {slot.end_time}
-                                            </button>
+                            {/* Weekly Grid */}
+                            <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden overflow-x-auto">
+                                <div className="min-w-[600px]">
+                                    {/* Header Row */}
+                                    <div className="grid grid-cols-8 border-b border-neutral-800 bg-neutral-800/20">
+                                        <div className="p-3 text-xs font-medium text-neutral-500 border-r border-neutral-800 text-right">Time</div>
+                                        {weekDays.map((day, idx) => (
+                                            <div key={idx} className={`p-3 text-center border-r border-neutral-800 last:border-r-0 ${isSameDay(day, new Date()) ? 'bg-blue-500/10' : ''}`}>
+                                                <div className="text-xs font-bold text-neutral-400 uppercase">{format(day, 'EEE')}</div>
+                                                <div className={`text-sm font-bold ${isSameDay(day, new Date()) ? 'text-blue-400' : 'text-white'}`}>{format(day, 'd')}</div>
+                                            </div>
                                         ))}
                                     </div>
-                                )}
-                            </div>
 
-                            <button
-                                onClick={handleNext}
-                                disabled={!selectedSlot || !date}
-                                className="w-full py-3 bg-white text-black font-bold rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Next
-                            </button>
+                                    {/* Time Slots */}
+                                    {timeSlots.map((hour) => (
+                                        <div key={hour} className="grid grid-cols-8 border-b border-neutral-800 last:border-b-0 h-10">
+                                            <div className="p-2 text-xs text-neutral-500 border-r border-neutral-800 text-right sticky left-0 bg-neutral-900 z-10">
+                                                {hour}:00
+                                            </div>
+                                            {weekDays.map((day, dayIdx) => {
+                                                const status = isSlotAvailable(day, hour);
+                                                return (
+                                                    <div key={dayIdx} className={`border-r border-neutral-800 last:border-r-0 p-0.5 ${isSameDay(day, new Date()) ? 'bg-blue-500/5' : ''}`}>
+                                                        {status === 'available' ? (
+                                                            <button
+                                                                onClick={() => handleSelectSlot(day, hour.toString().padStart(2, '0'))}
+                                                                className="w-full h-full bg-green-500/20 hover:bg-green-500/40 rounded border border-green-500/30 transition-colors flex items-center justify-center group"
+                                                            >
+                                                                <Check className="w-3 h-3 text-green-400 opacity-0 group-hover:opacity-100" />
+                                                            </button>
+                                                        ) : status === 'booked' ? (
+                                                            <div className="w-full h-full bg-neutral-800/50 rounded border border-neutral-800 flex items-center justify-center">
+                                                                <span className="text-[10px] text-neutral-600">Full</span>
+                                                            </div>
+                                                        ) : (
+                                                            // Unavailable
+                                                            <div className="w-full h-full"></div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     ) : (
-                        <div className="space-y-6">
-                            <div className="bg-neutral-800/50 rounded-xl p-4 space-y-4 border border-neutral-800">
+                        <div className="space-y-6 max-w-md mx-auto">
+                            <div className="bg-neutral-800/50 rounded-xl p-6 space-y-4 border border-neutral-800">
                                 <h3 className="text-lg font-bold text-white mb-2">Booking Preview</h3>
 
                                 <div className="flex justify-between items-center py-2 border-b border-neutral-700">
@@ -221,11 +220,11 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
                                 </div>
                                 <div className="flex justify-between items-center py-2 border-b border-neutral-700">
                                     <span className="text-neutral-400">Date</span>
-                                    <span className="text-white font-medium">{date}</span>
+                                    <span className="text-white font-medium">{selectedSlot && format(selectedSlot.date, 'PPPP')}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-2 border-b border-neutral-700">
                                     <span className="text-neutral-400">Time</span>
-                                    <span className="text-white font-medium">{selectedSlot?.start_time} to {selectedSlot?.end_time}</span>
+                                    <span className="text-white font-medium">{selectedSlot?.startTime}:00</span>
                                 </div>
                                 <div className="flex justify-between items-center py-2">
                                     <span className="text-neutral-400">Price</span>
@@ -255,3 +254,4 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
         </div>
     );
 }
+

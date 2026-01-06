@@ -2,8 +2,9 @@
 
 import { getTrainers, getUsers, createTrainerUser, deleteTrainer, createClientUser, updateClientUser, getAppointments, cancelAppointment } from '@/lib/store';
 import { User, Trainer, Appointment } from '@/lib/types';
-import { Users, UserPlus, Trash2, Plus, X, Pencil, Calendar, XCircle, Search } from 'lucide-react';
+import { Users, UserPlus, Trash2, Plus, X, Pencil, Calendar, XCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { startOfWeek, endOfWeek, eachDayOfInterval, format, addDays, subDays, isSameDay, parseISO, startOfDay } from 'date-fns';
 
 export default function AdminDashboardPage() {
     const [users, setUsers] = useState<User[]>([]);
@@ -13,6 +14,19 @@ export default function AdminDashboardPage() {
     // Dashboard State
     const [activeTab, setActiveTab] = useState<'trainers' | 'clients' | 'appointments'>('trainers');
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Calendar State
+    const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
+    const [viewMode, setViewMode] = useState<'list' | 'week'>('week');
+
+    // Calendar Helpers
+    const weekDays = eachDayOfInterval({
+        start: currentWeekStart,
+        end: endOfWeek(currentWeekStart, { weekStartsOn: 1 })
+    });
+    const timeSlots = Array.from({ length: 15 }, (_, i) => i + 7); // 7am to 9pm
+    const prevWeek = () => setCurrentWeekStart(subDays(currentWeekStart, 7));
+    const nextWeek = () => setCurrentWeekStart(addDays(currentWeekStart, 7));
 
     // Form State
     const [isAdding, setIsAdding] = useState(false);
@@ -453,67 +467,173 @@ export default function AdminDashboardPage() {
 
             {/* TAB CONTENT: APPOINTMENTS */}
             {activeTab === 'appointments' && (
-                <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6">
-                    <h3 className="text-xl font-bold text-white mb-6">All Appointments</h3>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="text-sm text-neutral-400 border-b border-neutral-800">
-                                <tr>
-                                    <th className="pb-4 font-medium">Trainer</th>
-                                    <th className="pb-4 font-medium">Client</th>
-                                    <th className="pb-4 font-medium">Date & Time</th>
-                                    <th className="pb-4 font-medium">Status</th>
-                                    <th className="pb-4 font-medium text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="text-sm">
-                                {filteredAppointments.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={5} className="py-8 text-center text-neutral-500">
-                                            {appointments.length === 0 ? 'No appointments found.' : `No appointments matching "${searchQuery}".`}
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    filteredAppointments.map((appt) => {
-                                        const trainer = trainers.find(t => t.id === appt.trainer_id);
-                                        const date = new Date(appt.start_time);
-                                        return (
-                                            <tr key={appt.id} className="border-b border-neutral-800/50 last:border-0 hover:bg-neutral-800/20 transition-colors">
-                                                <td className="py-4 text-white font-medium">{trainer?.name || 'Unknown'}</td>
-                                                <td className="py-4 text-neutral-300">
-                                                    <div className="flex flex-col">
-                                                        <span>{appt.client_name}</span>
-                                                        <span className="text-xs text-neutral-500">{appt.client_email}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="py-4 text-neutral-300">
-                                                    {date.toLocaleDateString()} at {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </td>
-                                                <td className="py-4">
-                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${appt.status === 'confirmed' ? 'bg-green-500/20 text-green-400' :
-                                                        appt.status === 'cancelled' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-500'
-                                                        }`}>
-                                                        {appt.status.toUpperCase()}
-                                                    </span>
-                                                </td>
-                                                <td className="py-4 text-right">
-                                                    {appt.status !== 'cancelled' && (
-                                                        <button
-                                                            onClick={() => handleCancelAppointment(appt.id)}
-                                                            className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
-                                                            title="Cancel Appointment"
-                                                        >
-                                                            <XCircle className="w-4 h-4" />
-                                                        </button>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
-                            </tbody>
-                        </table>
+                <div className="space-y-4">
+                    {/* Week Header */}
+                    <div className="flex items-center justify-between bg-neutral-900 p-4 rounded-xl border border-neutral-800">
+                        <div className="flex items-center gap-4">
+                            <button onClick={prevWeek} className="p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors">
+                                <ChevronLeft className="w-5 h-5" />
+                            </button>
+                            <span className="text-white font-medium">
+                                {format(weekDays[0], 'MMM d')} - {format(weekDays[6], 'MMM d, yyyy')}
+                            </span>
+                            <button onClick={nextWeek} className="p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors">
+                                <ChevronRight className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 text-xs text-neutral-500 mr-4">
+                                <div className="w-2 h-2 rounded-full bg-green-500/20 border border-green-500/50"></div> Confirmed
+                                <div className="w-2 h-2 rounded-full bg-red-500/20 border border-red-500/50"></div> Cancelled
+                            </div>
+                            <button
+                                onClick={() => setViewMode(viewMode === 'list' ? 'week' : 'list')}
+                                className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium rounded-lg transition-colors border border-neutral-700"
+                            >
+                                {viewMode === 'list' ? 'Switch to Grid' : 'Switch to List'}
+                            </button>
+                        </div>
                     </div>
+
+                    {viewMode === 'list' ? (
+                        <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6">
+                            <table className="w-full text-left">
+                                <thead className="text-sm text-neutral-400 border-b border-neutral-800">
+                                    <tr>
+                                        <th className="pb-4 font-medium">Trainer</th>
+                                        <th className="pb-4 font-medium">Client</th>
+                                        <th className="pb-4 font-medium">Date & Time</th>
+                                        <th className="pb-4 font-medium">Status</th>
+                                        <th className="pb-4 font-medium text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="text-sm">
+                                    {filteredAppointments.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="py-8 text-center text-neutral-500">
+                                                No appointments found for search "{searchQuery}".
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredAppointments.map((appt) => {
+                                            const trainer = trainers.find(t => t.id === appt.trainer_id);
+                                            const date = new Date(appt.start_time);
+                                            return (
+                                                <tr key={appt.id} className="border-b border-neutral-800/50 last:border-0 hover:bg-neutral-800/20 transition-colors">
+                                                    <td className="py-4 text-white font-medium">{trainer?.name || 'Unknown'}</td>
+                                                    <td className="py-4 text-neutral-300">
+                                                        <div className="flex flex-col">
+                                                            <span>{appt.client_name}</span>
+                                                            <span className="text-xs text-neutral-500">{appt.client_email}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 text-neutral-300">
+                                                        {date.toLocaleDateString()} at {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </td>
+                                                    <td className="py-4">
+                                                        <span className={`px-2 py-1 rounded text-xs font-bold ${appt.status === 'confirmed' ? 'bg-green-500/20 text-green-400' :
+                                                            appt.status === 'cancelled' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-500'
+                                                            }`}>
+                                                            {appt.status.toUpperCase()}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-4 text-right">
+                                                        {appt.status !== 'cancelled' && (
+                                                            <button
+                                                                onClick={() => handleCancelAppointment(appt.id)}
+                                                                className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
+                                                                title="Cancel Appointment"
+                                                            >
+                                                                <XCircle className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl overflow-hidden overflow-x-auto">
+                            <div className="min-w-[800px]">
+                                {/* Grid Header */}
+                                <div className="grid grid-cols-8 border-b border-neutral-800">
+                                    <div className="p-4 text-neutral-500 text-xs font-medium border-r border-neutral-800 sticky left-0 bg-neutral-900 z-10">
+                                        Time
+                                    </div>
+                                    {weekDays.map((day, idx) => (
+                                        <div key={idx} className={`p-4 text-center border-r border-neutral-800 last:border-r-0 ${isSameDay(day, new Date()) ? 'bg-blue-500/5' : ''}`}>
+                                            <div className={`text-xs font-medium uppercase mb-1 ${isSameDay(day, new Date()) ? 'text-blue-500' : 'text-neutral-500'}`}>
+                                                {format(day, 'EEE')}
+                                            </div>
+                                            <div className={`text-sm font-semibold ${isSameDay(day, new Date()) ? 'text-blue-400' : 'text-white'}`}>
+                                                {format(day, 'd')}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Grid Body */}
+                                <div>
+                                    {timeSlots.map((hour) => (
+                                        <div key={hour} className="grid grid-cols-8 border-b border-neutral-800 last:border-b-0 min-h-[100px]">
+                                            {/* Time Column */}
+                                            <div className="p-2 text-right text-xs text-neutral-500 border-r border-neutral-800 sticky left-0 bg-neutral-900 z-10">
+                                                {hour}:00
+                                            </div>
+
+                                            {/* Day Columns */}
+                                            {weekDays.map((day, dayIdx) => {
+                                                // Find appointments for this day and hour
+                                                const slotAppts = filteredAppointments.filter(appt => {
+                                                    const apptDate = parseISO(appt.start_time);
+                                                    return isSameDay(apptDate, day) && apptDate.getHours() === hour;
+                                                });
+
+                                                return (
+                                                    <div key={dayIdx} className={`p-1 border-r border-neutral-800 last:border-r-0 relative group ${isSameDay(day, new Date()) ? 'bg-blue-500/5' : ''}`}>
+                                                        {slotAppts.map((appt) => {
+                                                            const trainer = trainers.find(t => t.id === appt.trainer_id);
+                                                            return (
+                                                                <div
+                                                                    key={appt.id}
+                                                                    className={`mb-1 p-2 rounded-md border text-xs cursor-pointer transition-colors ${appt.status === 'cancelled'
+                                                                            ? 'bg-red-500/10 border-red-500/20 hover:bg-red-500/20'
+                                                                            : 'bg-neutral-800 border-neutral-700 hover:bg-neutral-700 hover:border-blue-500'
+                                                                        }`}
+                                                                >
+                                                                    <div className="flex justify-between items-start">
+                                                                        <span className={`font-semibold ${appt.status === 'cancelled' ? 'text-red-400 line-through' : 'text-blue-400'}`}>
+                                                                            {trainer?.name.split(' ')[0]}
+                                                                        </span>
+                                                                        {appt.status !== 'cancelled' && (
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); handleCancelAppointment(appt.id); }}
+                                                                                className="text-neutral-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                                title="Cancel"
+                                                                            >
+                                                                                <X className="w-3 h-3" />
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-neutral-300 truncate mt-1">
+                                                                        {appt.client_name}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
