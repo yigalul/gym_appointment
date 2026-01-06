@@ -56,92 +56,37 @@ export default function DashboardLayout({
                 </div>
 
                 <nav className="p-4 space-y-8 overflow-y-auto h-[calc(100vh-80px)]">
-                    {/* Trainer Section - Only for Trainers */}
-                    {showTrainer && (
-                        <div>
-                            <h3 className="px-4 text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Trainer</h3>
-                            <ul className="space-y-1">
-                                {MAIN_NAV.map((item) => {
-                                    const Icon = item.icon;
-                                    const isActive = pathname === item.href;
-                                    return (
-                                        <li key={item.name}>
-                                            <Link
-                                                href={item.href}
-                                                className={cn(
-                                                    "flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all group",
-                                                    isActive
-                                                        ? "bg-blue-600/10 text-blue-500"
-                                                        : "text-neutral-400 hover:text-white hover:bg-white/5"
-                                                )}
-                                            >
-                                                <Icon className={cn("w-4 h-4", isActive ? "text-blue-500" : "text-neutral-500 group-hover:text-white")} />
-                                                {item.name}
-                                            </Link>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        </div>
-                    )}
+                    {/* Unified Navigation */}
+                    <ul className="space-y-1">
+                        {[
+                            ...(showTrainer ? MAIN_NAV : []),
+                            ...(showClient ? CLIENT_NAV : []),
+                            ...(showAdmin ? ADMIN_NAV : [])
+                        ].map((item) => {
+                            const Icon = item.icon;
+                            const isActive = pathname === item.href;
+                            // Determine color based on role context (optional, can simplify to one color)
+                            const activeColorClass = showTrainer ? "text-blue-500" : showClient ? "text-purple-500" : "text-green-500";
+                            const activeBgClass = showTrainer ? "bg-blue-600/10" : showClient ? "bg-purple-600/10" : "bg-green-600/10";
 
-                    {/* Client Section - Only for Clients */}
-                    {showClient && (
-                        <div>
-                            <h3 className="px-4 text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Client</h3>
-                            <ul className="space-y-1">
-                                {CLIENT_NAV.map((item) => {
-                                    const Icon = item.icon;
-                                    const isActive = pathname === item.href;
-                                    return (
-                                        <li key={item.name}>
-                                            <Link
-                                                href={item.href}
-                                                className={cn(
-                                                    "flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all group",
-                                                    isActive
-                                                        ? "bg-purple-600/10 text-purple-500"
-                                                        : "text-neutral-400 hover:text-white hover:bg-white/5"
-                                                )}
-                                            >
-                                                <Icon className={cn("w-4 h-4", isActive ? "text-purple-500" : "text-neutral-500 group-hover:text-white")} />
-                                                {item.name}
-                                            </Link>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        </div>
-                    )}
-
-                    {/* Admin Section - Only for Admins */}
-                    {showAdmin && (
-                        <div>
-                            <h3 className="px-4 text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Admin</h3>
-                            <ul className="space-y-1">
-                                {ADMIN_NAV.map((item) => {
-                                    const Icon = item.icon;
-                                    const isActive = pathname === item.href;
-                                    return (
-                                        <li key={item.name}>
-                                            <Link
-                                                href={item.href}
-                                                className={cn(
-                                                    "flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all group",
-                                                    isActive
-                                                        ? "bg-green-600/10 text-green-500"
-                                                        : "text-neutral-400 hover:text-white hover:bg-white/5"
-                                                )}
-                                            >
-                                                <Icon className={cn("w-4 h-4", isActive ? "text-green-500" : "text-neutral-500 group-hover:text-white")} />
-                                                {item.name}
-                                            </Link>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        </div>
-                    )}
+                            return (
+                                <li key={item.name}>
+                                    <Link
+                                        href={item.href}
+                                        className={cn(
+                                            "flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all group",
+                                            isActive
+                                                ? `${activeBgClass} ${activeColorClass}`
+                                                : "text-neutral-400 hover:text-white hover:bg-white/5"
+                                        )}
+                                    >
+                                        <Icon className={cn("w-4 h-4", isActive ? activeColorClass : "text-neutral-500 group-hover:text-white")} />
+                                        {item.name}
+                                    </Link>
+                                </li>
+                            );
+                        })}
+                    </ul>
                 </nav>
 
                 <div className="absolute bottom-6 left-0 w-full px-6">
