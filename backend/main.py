@@ -151,7 +151,18 @@ def create_availability(trainer_id: int, availability: schemas.AvailabilityBase,
 
 @app.post("/appointments/", response_model=schemas.Appointment)
 def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Depends(get_db)):
-    # 1. Gym Capacity: Max 6 appointments total per slot
+    # 1. Duplicate Booking Check: User cannot book the same slot twice
+    # (Checking by email which is our current unique identifier mostly)
+    existing_appointment = db.query(models.Appointment).filter(
+        models.Appointment.client_email == appointment.client_email,
+        models.Appointment.start_time == appointment.start_time,
+        models.Appointment.status != "cancelled"
+    ).first()
+
+    if existing_appointment:
+        raise HTTPException(status_code=400, detail="You already have a booking at this time.")
+
+    # 2. Gym Capacity: Max 6 appointments total per slot
     global_count = db.query(models.Appointment).filter(
         models.Appointment.start_time == appointment.start_time,
         models.Appointment.status != "cancelled"
@@ -160,7 +171,7 @@ def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Dep
     if global_count >= 6:
          raise HTTPException(status_code=400, detail="Gym capacity reached for this time slot (Max 6 clients).")
 
-    # 2. Trainer Capacity: Max 3 unique trainers per slot AND Max 2 clients per trainer
+    # 3. Trainer Capacity: Max 3 unique trainers per slot AND Max 2 clients per trainer
     # Check if this trainer is already working
     trainer_appointments = db.query(models.Appointment).filter(
         models.Appointment.trainer_id == appointment.trainer_id,
@@ -183,16 +194,6 @@ def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Dep
         if active_trainers_count >= 3:
             raise HTTPException(status_code=400, detail="Shift capacity reached (Max 3 trainers per shift).")
 
-    # 3. Duplicate Booking Check: User cannot book the same slot twice
-    # (Checking by email which is our current unique identifier mostly)
-    existing_appointment = db.query(models.Appointment).filter(
-        models.Appointment.client_email == appointment.client_email,
-        models.Appointment.start_time == appointment.start_time,
-        models.Appointment.status != "cancelled"
-    ).first()
-
-    if existing_appointment:
-        raise HTTPException(status_code=400, detail="You already have a booking at this time.")
 
     # 4. Weekly Workout Limit
     from datetime import datetime, timedelta
