@@ -25,7 +25,7 @@ export default function LoginPage() {
         e.preventDefault();
         setError('');
 
-        const user = users.find(u => u.email === email);
+        const user = users.find(u => u.email === email.trim());
 
         // Simple password check (in real app this would be server-side)
         // For now we check if hashed_password matches input or if it's just a simulation
@@ -100,11 +100,29 @@ export default function LoginPage() {
                         Sign In
                     </button>
 
-                    <div className="mt-4 p-4 bg-neutral-950/50 rounded text-xs text-neutral-500 space-y-1">
-                        <p className="font-semibold mb-1">Demo Credentials:</p>
-                        <p>admin@gym.com / adminpassword</p>
-                        <p>sarah@gym.com / trainerpassword</p>
-                        <p>client@example.com / clientpassword</p>
+                    <div className="mt-4 p-4 bg-neutral-950/50 rounded text-xs text-neutral-500 space-y-2">
+                        <p className="font-semibold mb-2">Click to auto-fill Demo Credentials:</p>
+                        <button
+                            type="button"
+                            onClick={() => { setEmail('admin@gym.com'); setPassword('adminpassword'); }}
+                            className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors"
+                        >
+                            <span className="text-blue-400">Admin:</span> admin@gym.com / adminpassword
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setEmail('sarah@gym.com'); setPassword('trainerpassword'); }}
+                            className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors"
+                        >
+                            <span className="text-purple-400">Trainer:</span> sarah@gym.com / trainerpassword
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setEmail('client@example.com'); setPassword('clientpassword'); }}
+                            className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors"
+                        >
+                            <span className="text-green-400">Client:</span> client@example.com / clientpassword
+                        </button>
                     </div>
                 </form>
             </div>
