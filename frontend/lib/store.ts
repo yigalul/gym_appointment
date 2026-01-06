@@ -116,7 +116,7 @@ export async function createClientUser(email: string, defaultSlots: { day_of_wee
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 email,
-                password: 'password123',
+                password: 'GymStrong2026!',
                 role: 'client',
                 default_slots: defaultSlots,
                 weekly_workout_limit: weeklyWorkoutLimit

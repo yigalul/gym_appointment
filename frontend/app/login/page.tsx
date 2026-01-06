@@ -34,7 +34,7 @@ export default function LoginPage() {
             // checking basic hardcoded passwords for the demo roles:
             const isValid = (user.role === 'admin' && password === 'adminpassword') ||
                 (user.role === 'trainer' && password === 'trainerpassword') ||
-                (user.role === 'client' && (password === 'clientpassword' || password === 'password123'));
+                (user.role === 'client' && (password === 'clientpassword' || password === 'password123' || password === 'GymStrong2026!'));
 
             if (isValid) {
                 loginUser(user);
