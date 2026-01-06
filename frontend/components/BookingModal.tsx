@@ -17,6 +17,7 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
     const [selectedSlot, setSelectedSlot] = useState<Availability | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [appointments, setAppointments] = useState<any[]>([]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -29,6 +30,9 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
             // For simplicity, user picks date.
             const today = new Date().toISOString().split('T')[0];
             setDate(today);
+
+            // Fetch appointments to calculate availability
+            getAppointments().then(data => setAppointments(data));
         }
     }, [isOpen]);
 
@@ -81,16 +85,6 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
             setError(err instanceof Error ? err.message : 'Booking failed. Please try again.');
         }
     };
-
-    const [appointments, setAppointments] = useState<any[]>([]);
-
-    useEffect(() => {
-        if (isOpen) {
-            // Fetch appointments to calculate availability
-            // In a real app, we might query by date range
-            getAppointments().then(data => setAppointments(data));
-        }
-    }, [isOpen]);
 
     // Filter slots based on selected date's day of week AND availability
     const getFilteredSlots = () => {
