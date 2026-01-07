@@ -1,27 +1,53 @@
 'use client';
 
-import { getTrainers, getAppointments } from '@/lib/store';
-import { Calendar, Users, Clock } from 'lucide-react';
+import { getTrainers, getAppointments, getCurrentUser } from '@/lib/store';
+import { startOfWeek, endOfWeek, eachDayOfInterval, format, addDays, subDays, isSameDay, parseISO } from 'date-fns';
+import { Calendar, Users, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Trainer, Appointment } from '@/lib/types';
 
 export default function DashboardPage() {
+    const router = useRouter();
     const [trainer, setTrainer] = useState<Trainer | null>(null);
     const [appointments, setAppointments] = useState<Appointment[]>([]);
+    const [currentWeekStart, setCurrentWeekStart] = useState<Date | null>(null);
 
     useEffect(() => {
-        // Hardcoded ID 1 for "Logged In" status
+        const user = getCurrentUser();
+        if (!user) {
+            router.push('/login');
+            return;
+        }
+
         getTrainers().then(trainers => {
-            // In a real app we'd use auth context, here we just pick the first one if available
-            if (trainers.length > 0) setTrainer(trainers[0]);
+            const myTrainerProfile = trainers.find(t => t.user_id === user.id);
+            if (myTrainerProfile) {
+                setTrainer(myTrainerProfile);
+            } else {
+                // Handle case where user is logged in but has no trainer profile
+                // For now, maybe redirect or show error?
+                // Just picking first one is what we want to AVOID.
+                console.error("No trainer profile found for this user");
+            }
         });
 
         getAppointments().then(setAppointments);
+        setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
     }, []);
 
-    if (!trainer) {
+    if (!trainer || !currentWeekStart) {
         return <div className="p-8 text-neutral-400">Loading dashboard...</div>;
     }
+
+    const weekDays = eachDayOfInterval({
+        start: currentWeekStart,
+        end: endOfWeek(currentWeekStart, { weekStartsOn: 1 })
+    });
+    const timeSlots = Array.from({ length: 16 }, (_, i) => i + 7); // 7am to 10pm
+
+    const prevWeek = () => setCurrentWeekStart(subDays(currentWeekStart, 7));
+    const nextWeek = () => setCurrentWeekStart(addDays(currentWeekStart, 7));
 
     const upcomingAppointments = appointments.filter(app => app.trainer_id === trainer.id);
 
@@ -69,26 +95,84 @@ export default function DashboardPage() {
                 </div>
             </div>
 
-            {/* Recent Appointments */}
-            <div className="bg-neutral-800/30 rounded-xl border border-neutral-800 overflow-hidden">
-                <div className="p-6 border-b border-neutral-800">
-                    <h3 className="text-lg font-semibold text-white">Upcoming Appointments</h3>
+            {/* Weekly Calendar */}
+            <div className="space-y-4">
+                {/* Week Header */}
+                <div className="flex items-center justify-between bg-neutral-900 p-4 rounded-xl border border-neutral-800">
+                    <div className="flex items-center gap-4">
+                        <button onClick={prevWeek} className="p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors">
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <span className="text-white font-medium">
+                            {format(weekDays[0], 'MMM d')} - {format(weekDays[6], 'MMM d, yyyy')}
+                        </span>
+                        <button onClick={nextWeek} className="p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors">
+                            <ChevronRight className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
-                <div className="p-6 text-center text-neutral-400">
-                    {upcomingAppointments.length === 0 ? (
-                        <div className="py-8">
-                            <p>No upcoming appointments scheduled.</p>
-                        </div>
-                    ) : (
-                        <ul className="space-y-4">
-                            {upcomingAppointments.map(app => (
-                                <li key={app.id} className="flex justify-between items-center text-white bg-neutral-800 p-4 rounded-lg">
-                                    <span>{app.client_name}</span>
-                                    <span>{new Date(app.start_time).toLocaleString()}</span>
-                                </li>
+
+                <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl overflow-hidden overflow-x-auto">
+                    <div className="min-w-[800px]">
+                        {/* Grid Header */}
+                        <div className="grid grid-cols-8 border-b border-neutral-800">
+                            <div className="p-4 text-neutral-500 text-xs font-medium border-r border-neutral-800 sticky left-0 bg-neutral-900 z-10">
+                                Time
+                            </div>
+                            {weekDays.map((day, idx) => (
+                                <div key={idx} className={`p-4 text-center border-r border-neutral-800 last:border-r-0 ${isSameDay(day, new Date()) ? 'bg-blue-500/5' : ''}`}>
+                                    <div className={`text-xs font-medium uppercase mb-1 ${isSameDay(day, new Date()) ? 'text-blue-500' : 'text-neutral-500'}`}>
+                                        {format(day, 'EEE')}
+                                    </div>
+                                    <div className={`text-sm font-semibold ${isSameDay(day, new Date()) ? 'text-blue-400' : 'text-white'}`}>
+                                        {format(day, 'd')}
+                                    </div>
+                                </div>
                             ))}
-                        </ul>
-                    )}
+                        </div>
+
+                        {/* Grid Body */}
+                        <div>
+                            {timeSlots.map((hour) => (
+                                <div key={hour} className="grid grid-cols-8 border-b border-neutral-800 last:border-b-0 min-h-[100px]">
+                                    {/* Time Column */}
+                                    <div className="p-2 text-right text-xs text-neutral-500 border-r border-neutral-800 sticky left-0 bg-neutral-900 z-10">
+                                        {hour}:00
+                                    </div>
+
+                                    {/* Day Columns */}
+                                    {weekDays.map((day, dayIdx) => {
+                                        // Find appointments for this day and hour
+                                        const slotAppts = upcomingAppointments.filter(appt => {
+                                            const apptDate = parseISO(appt.start_time);
+                                            return isSameDay(apptDate, day) && apptDate.getHours() === hour;
+                                        });
+
+                                        return (
+                                            <div key={dayIdx} className={`p-1 border-r border-neutral-800 last:border-r-0 relative group ${isSameDay(day, new Date()) ? 'bg-blue-500/5' : ''}`}>
+                                                {slotAppts.map((appt) => (
+                                                    <div
+                                                        key={appt.id}
+                                                        className={`mb-1 p-2 rounded-md border text-xs transition-colors ${appt.status === 'cancelled'
+                                                            ? 'bg-red-500/10 border-red-500/20 text-red-400'
+                                                            : 'bg-blue-600/20 border-blue-500/50 text-white'
+                                                            }`}
+                                                    >
+                                                        <div className="font-semibold">
+                                                            {appt.client_name}
+                                                        </div>
+                                                        <div className="text-xs opacity-75 mt-1">
+                                                            {appt.status === 'confirmed' ? 'Confirmed' : appt.status.toUpperCase()}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

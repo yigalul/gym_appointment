@@ -249,6 +249,190 @@ def cancel_appointment(appointment_id: int, db: Session = Depends(get_db)):
     db.refresh(appointment)
     return appointment
 
+@app.delete("/appointments/week/{week_start_date}", response_model=dict)
+def clear_week_appointments(week_start_date: str, db: Session = Depends(get_db)):
+    from datetime import datetime, timedelta
+    try:
+        start_date = datetime.fromisoformat(week_start_date)
+        end_date = start_date + timedelta(days=7)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format")
+
+    # Delete appointments in range
+    result = db.query(models.Appointment).filter(
+        models.Appointment.start_time >= start_date.isoformat(),
+        models.Appointment.start_time < end_date.isoformat()
+    ).delete(synchronize_session=False)
+    
+    db.commit()
+    return {"message": "Week cleared", "deleted_count": result}
+
+@app.post("/appointments/auto-schedule", response_model=dict)
+def auto_schedule_week(payload: dict, db: Session = Depends(get_db)):
+    # Payload: { "week_start_date": "YYYY-MM-DD" }
+    from datetime import datetime, timedelta
+    
+    logger = []
+    failed_assignments = []
+    success_count = 0
+    
+    try:
+        week_start = datetime.fromisoformat(payload.get("week_start_date"))
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid week_start_date format. properly.")
+
+    # 1. Get all clients with default slots
+    clients = db.query(models.User).filter(models.User.role == "client").all()
+    
+    for client in clients:
+        if not client.default_slots:
+            continue
+            
+        for slot in client.default_slots:
+            # Calculate target appointment datetime
+            # slot.day_of_week: 0=Sunday, 1=Monday... (Wait, date-fns uses 0=Sunday? No, Python datetime 0=Monday)
+            # Let's standardize: In our system 0=Monday based on seeding. 
+            # If week_start is Monday, then target_date = week_start + days(slot.day_of_week)
+            # Assumption: week_start is a Monday.
+            
+            target_date = week_start + timedelta(days=slot.day_of_week)   
+            appointment_time_iso = f"{target_date.strftime('%Y-%m-%d')}T{slot.start_time}:00"
+            
+            # Check if already booked
+            existing = db.query(models.Appointment).filter(
+                models.Appointment.client_email == client.email,
+                models.Appointment.start_time == appointment_time_iso,
+                models.Appointment.status != 'cancelled'
+            ).first()
+            
+            if existing:
+                continue # Already scheduled
+                
+            # --- CONSTRAINTS CHECK ---
+            
+            # 1. Gym Capacity (Global: Max 3 trainers working simultaneously)
+            active_trainers_count = db.query(models.Appointment.trainer_id).filter(
+                models.Appointment.start_time == appointment_time_iso,
+                models.Appointment.status != "cancelled"
+            ).distinct().count()
+            
+            if active_trainers_count >= 3:
+                # But wait, if we pick an ALREADY ACTIVE trainer, we don't increase this count.
+                # So we can only pick from already active trainers if count >= 3.
+                pass
+            
+            # Find a suitable trainer
+            # Strategy:
+            # 1. Get all trainers who are AVAILABLE (Shift) at this time.
+            # 2. Filter out trainers who are FULL (>= 2 clients).
+            # 3. Optimize: Reuse active trainers first to save 'Gym Capacity' slots? Or doesn't matter?
+            #    The rule is "Only 3 trainers can train simultaneously".
+            #    So if 2 trainers are active, we can add a 3rd.
+            #    If 3 are active, we MUST use one of them.
+            
+            available_trainers = []
+            
+            # Get all trainers
+            all_trainers = db.query(models.Trainer).all()
+            
+            for trainer in all_trainers:
+                # A. Check Shift Availability
+                # slot.start_time is "HH:MM". Availability has start/end.
+                # Simplification: Exact match on start_time since we use fixed slots?
+                # Or range check? Let's use range check.
+                is_working = False
+                for av in trainer.availabilities:
+                    if av.day_of_week == slot.day_of_week:
+                        # Check start time match (assuming slots align for now)
+                        if av.start_time <= slot.start_time and av.end_time > slot.start_time:
+                            is_working = True
+                            break
+                            
+                if not is_working:
+                    continue
+
+                # B. Check Capacity (Max 2 clients)
+                current_clients = db.query(models.Appointment).filter(
+                    models.Appointment.trainer_id == trainer.id,
+                    models.Appointment.start_time == appointment_time_iso,
+                    models.Appointment.status != "cancelled"
+                ).count()
+                
+                if current_clients >= 2:
+                    continue
+                    
+                # C. Check Global Constraint
+                # If this trainer is NOT already active, adds +1 to global count.
+                # If global count is already 3, we cannot add a NEW trainer.
+                is_active = current_clients > 0
+                if not is_active and active_trainers_count >= 3:
+                    continue
+                    
+                available_trainers.append(trainer)
+            
+            if not available_trainers:
+                 failed_assignments.append({
+                     "client": client.email,
+                     "slot": f"{target_date.strftime('%A')} {slot.start_time}",
+                     "reason": "No available trainer / Gym busy"
+                 })
+                 
+                 # Create Notification for failure
+                 from datetime import datetime
+                 notif = models.Notification(
+                     user_id=client.id,
+                     message=f"Could not auto-schedule {target_date.strftime('%A')} at {slot.start_time}: No available trainer or gym full.",
+                     created_at=datetime.now().isoformat(),
+                     is_read=False
+                 )
+                 db.add(notif)
+                 db.commit() # Commit notification even if assignment failed
+                 
+                 continue
+                 
+            # Assign first available (Logic could be smarter, e.g., round robin)
+            selected_trainer = available_trainers[0]
+            
+            # Create Appointment
+            new_appt = models.Appointment(
+                trainer_id=selected_trainer.id,
+                client_id=client.id,
+                client_name=client.email.split('@')[0], # Fallback name
+                client_email=client.email,
+                start_time=appointment_time_iso,
+                status="confirmed"
+            )
+            db.add(new_appt)
+            success_count += 1
+            
+            # Update active count for next iteration (approximate within transaction)
+            # Actually db.commit is needed to update queries? 
+            # Ideally we do this in one go or careful logic. 
+            # For simplicity let's commit per booking or carefully track in memory?
+            # Committing per booking is safer for MVP logic Correctness check re-runs.
+            db.commit() 
+            
+    return {
+        "success_count": success_count,
+        "failed_assignments": failed_assignments
+    }
+
+@app.get("/users/{user_id}/notifications", response_model=List[schemas.Notification])
+def read_notifications(user_id: int, db: Session = Depends(get_db)):
+    return db.query(models.Notification).filter(models.Notification.user_id == user_id).order_by(models.Notification.created_at.desc()).all()
+
+@app.put("/notifications/{notification_id}/read", response_model=schemas.Notification)
+def mark_notification_read(notification_id: int, db: Session = Depends(get_db)):
+    notif = db.query(models.Notification).filter(models.Notification.id == notification_id).first()
+    if not notif:
+         raise HTTPException(status_code=404, detail="Notification not found")
+    
+    notif.is_read = True
+    db.commit()
+    db.refresh(notif)
+    return notif
+
 @app.get("/appointments/", response_model=List[schemas.Appointment])
 def read_appointments(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     appointments = db.query(models.Appointment).order_by(models.Appointment.start_time.asc()).offset(skip).limit(limit).all()

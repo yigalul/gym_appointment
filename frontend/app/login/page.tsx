@@ -122,9 +122,6 @@ export default function LoginPage() {
 
                         <div className="space-y-1">
                             <p className="text-green-400 font-bold">Clients</p>
-                            <button type="button" onClick={() => { setEmail('client@example.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
-                                Demo Client (client@example.com)
-                            </button>
                             <button type="button" onClick={() => { setEmail('alice@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
                                 Alice (alice@gym.com)
                             </button>
@@ -133,6 +130,12 @@ export default function LoginPage() {
                             </button>
                             <button type="button" onClick={() => { setEmail('charlie@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
                                 Charlie (charlie@gym.com)
+                            </button>
+                            <button type="button" onClick={() => { setEmail('dave@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
+                                Dave (dave@gym.com)
+                            </button>
+                            <button type="button" onClick={() => { setEmail('eve@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
+                                Eve (eve@gym.com)
                             </button>
                         </div>
                     </div>

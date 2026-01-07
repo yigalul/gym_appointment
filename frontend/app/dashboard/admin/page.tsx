@@ -1,8 +1,8 @@
 'use client';
 
-import { getTrainers, getUsers, createTrainerUser, deleteTrainer, createClientUser, updateClientUser, getAppointments, cancelAppointment } from '@/lib/store';
+import { getTrainers, getUsers, createTrainerUser, deleteTrainer, createClientUser, updateClientUser, getAppointments, cancelAppointment, autoScheduleWeek, clearWeekAppointments } from '@/lib/store';
 import { User, Trainer, Appointment } from '@/lib/types';
-import { Users, UserPlus, Trash2, Plus, X, Pencil, Calendar, XCircle, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Users, UserPlus, Trash2, Plus, X, Pencil, Calendar, XCircle, Search, ChevronLeft, ChevronRight, Wand2, AlertCircle, CheckCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { startOfWeek, endOfWeek, eachDayOfInterval, format, addDays, subDays, isSameDay, parseISO, startOfDay } from 'date-fns';
 
@@ -16,17 +16,25 @@ export default function AdminDashboardPage() {
     const [searchQuery, setSearchQuery] = useState('');
 
     // Calendar State
-    const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
+    const [currentWeekStart, setCurrentWeekStart] = useState<Date | null>(null);
     const [viewMode, setViewMode] = useState<'list' | 'week'>('week');
 
-    // Calendar Helpers
-    const weekDays = eachDayOfInterval({
-        start: currentWeekStart,
-        end: endOfWeek(currentWeekStart, { weekStartsOn: 1 })
-    });
-    const timeSlots = Array.from({ length: 15 }, (_, i) => i + 7); // 7am to 9pm
-    const prevWeek = () => setCurrentWeekStart(subDays(currentWeekStart, 7));
-    const nextWeek = () => setCurrentWeekStart(addDays(currentWeekStart, 7));
+    useEffect(() => {
+        setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+    }, []);
+
+    const TRAINER_COLORS = [
+        'bg-blue-600/20 border-blue-500/50 hover:bg-blue-600/30',
+        'bg-purple-600/20 border-purple-500/50 hover:bg-purple-600/30',
+        'bg-orange-600/20 border-orange-500/50 hover:bg-orange-600/30',
+        'bg-pink-600/20 border-pink-500/50 hover:bg-pink-600/30',
+        'bg-teal-600/20 border-teal-500/50 hover:bg-teal-600/30',
+        'bg-indigo-600/20 border-indigo-500/50 hover:bg-indigo-600/30',
+    ];
+    const getTrainerColor = (id: number) => TRAINER_COLORS[id % TRAINER_COLORS.length];
+
+
+
 
     // Form State
     const [isAdding, setIsAdding] = useState(false);
@@ -48,6 +56,10 @@ export default function AdminDashboardPage() {
     const [slotDay, setSlotDay] = useState(1);
     const [slotHour, setSlotHour] = useState(9); // 0-23
 
+    // Auto-Schedule Report State
+    const [scheduleReport, setScheduleReport] = useState<{ success_count: number; failed_assignments: any[] } | null>(null);
+    const [isScheduling, setIsScheduling] = useState(false);
+
     const refreshData = () => {
         getUsers().then(setUsers);
         getTrainers().then(setTrainers);
@@ -57,6 +69,8 @@ export default function AdminDashboardPage() {
     useEffect(() => {
         refreshData();
     }, []);
+
+
 
     const resetForms = () => {
         setNewName('');
@@ -155,6 +169,35 @@ export default function AdminDashboardPage() {
         }
     };
 
+    const handleAutoSchedule = async () => {
+        if (!currentWeekStart) return;
+        if (!confirm('Run Auto-Scheduler for this week? This will try to book all clients based on their default preferences.')) return;
+
+        setIsScheduling(true);
+        const result = await autoScheduleWeek(format(currentWeekStart, 'yyyy-MM-dd'));
+        setIsScheduling(false);
+
+        if (result) {
+            setScheduleReport(result);
+            refreshData();
+        } else {
+            alert('Failed to run auto-scheduler.');
+        }
+    };
+
+    const handleClearWeek = async () => {
+        if (!currentWeekStart) return;
+        if (!confirm('Are you sure you want to CLEA ALL appointments for this week? This action cannot be undone.')) return;
+
+        const success = await clearWeekAppointments(format(currentWeekStart, 'yyyy-MM-dd'));
+        if (success) {
+            alert('Week cleared successfully.');
+            refreshData();
+        } else {
+            alert('Failed to clear week.');
+        }
+    };
+
     // --- Search & Filter Logic ---
     const filteredTrainers = trainers.filter(t =>
         t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -170,6 +213,19 @@ export default function AdminDashboardPage() {
         a.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         a.client_email.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    if (!currentWeekStart) {
+        return <div className="p-12 text-center text-neutral-500">Loading admin dashboard...</div>;
+    }
+
+    // Calendar Helpers
+    const weekDays = eachDayOfInterval({
+        start: currentWeekStart,
+        end: endOfWeek(currentWeekStart, { weekStartsOn: 1 })
+    });
+    const timeSlots = Array.from({ length: 15 }, (_, i) => i + 7); // 7am to 9pm
+    const prevWeek = () => setCurrentWeekStart(subDays(currentWeekStart, 7));
+    const nextWeek = () => setCurrentWeekStart(addDays(currentWeekStart, 7));
 
     return (
         <div className="space-y-8">
@@ -402,11 +458,15 @@ export default function AdminDashboardPage() {
                                         </div>
                                         <div>
                                             <div className="font-medium text-white">{trainer.name}</div>
-                                            <div className="text-sm text-neutral-500">{trainer.specialty}</div>
+                                            <div className="text-sm text-neutral-500">{trainer.role}</div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-4">
-                                        <div className="text-sm text-neutral-600 hidden md:block">{trainer.availability || 'No schedule'}</div>
+                                        <div className="text-sm text-neutral-600 hidden md:block">
+                                            {trainer.availabilities && trainer.availabilities.length > 0
+                                                ? trainer.availabilities.map(a => `${dayName(a.day_of_week)} ${a.start_time}`).join(', ')
+                                                : 'No schedule'}
+                                        </div>
                                         <button
                                             onClick={() => handleDeleteTrainer(trainer.user_id)}
                                             className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
@@ -487,6 +547,22 @@ export default function AdminDashboardPage() {
                                 <div className="w-2 h-2 rounded-full bg-green-500/20 border border-green-500/50"></div> Confirmed
                                 <div className="w-2 h-2 rounded-full bg-red-500/20 border border-red-500/50"></div> Cancelled
                             </div>
+                            <button
+                                onClick={handleClearWeek}
+                                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-2 mr-2"
+                                title="Delete all appointments for this week"
+                            >
+                                <Trash2 className="w-3 h-3" />
+                                Clear Week
+                            </button>
+                            <button
+                                onClick={handleAutoSchedule}
+                                disabled={isScheduling}
+                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-2 mr-2"
+                            >
+                                <Wand2 className="w-3 h-3" />
+                                {isScheduling ? 'Scheduling...' : 'Auto-Schedule'}
+                            </button>
                             <button
                                 onClick={() => setViewMode(viewMode === 'list' ? 'week' : 'list')}
                                 className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium rounded-lg transition-colors border border-neutral-700"
@@ -593,6 +669,20 @@ export default function AdminDashboardPage() {
                                                     return isSameDay(apptDate, day) && apptDate.getHours() === hour;
                                                 });
 
+                                                const TRAINER_COLORS = [
+                                                    { bg: 'bg-blue-500/10', border: 'border-blue-500/20', hover: 'hover:bg-blue-500/20' },
+                                                    { bg: 'bg-green-500/10', border: 'border-green-500/20', hover: 'hover:bg-green-500/20' },
+                                                    { bg: 'bg-purple-500/10', border: 'border-purple-500/20', hover: 'hover:bg-purple-500/20' },
+                                                    { bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', hover: 'hover:bg-yellow-500/20' },
+                                                    { bg: 'bg-pink-500/10', border: 'border-pink-500/20', hover: 'hover:bg-pink-500/20' },
+                                                ];
+
+                                                const getTrainerColor = (trainerId: number) => {
+                                                    const index = trainerId % TRAINER_COLORS.length;
+                                                    const color = TRAINER_COLORS[index];
+                                                    return `${color.bg} ${color.border} ${color.hover}`;
+                                                };
+
                                                 return (
                                                     <div key={dayIdx} className={`p-1 border-r border-neutral-800 last:border-r-0 relative group ${isSameDay(day, new Date()) ? 'bg-blue-500/5' : ''}`}>
                                                         {slotAppts.map((appt) => {
@@ -601,12 +691,12 @@ export default function AdminDashboardPage() {
                                                                 <div
                                                                     key={appt.id}
                                                                     className={`mb-1 p-2 rounded-md border text-xs cursor-pointer transition-colors ${appt.status === 'cancelled'
-                                                                            ? 'bg-red-500/10 border-red-500/20 hover:bg-red-500/20'
-                                                                            : 'bg-neutral-800 border-neutral-700 hover:bg-neutral-700 hover:border-blue-500'
+                                                                        ? 'bg-red-500/10 border-red-500/20 hover:bg-red-500/20'
+                                                                        : getTrainerColor(appt.trainer_id || 0)
                                                                         }`}
                                                                 >
                                                                     <div className="flex justify-between items-start">
-                                                                        <span className={`font-semibold ${appt.status === 'cancelled' ? 'text-red-400 line-through' : 'text-blue-400'}`}>
+                                                                        <span className={`font-semibold ${appt.status === 'cancelled' ? 'text-red-400 line-through' : 'text-white'}`}>
                                                                             {trainer?.name.split(' ')[0]}
                                                                         </span>
                                                                         {appt.status !== 'cancelled' && (
@@ -637,6 +727,63 @@ export default function AdminDashboardPage() {
                 </div>
             )}
 
+            {/* Report Modal */}
+            {scheduleReport && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg p-6 max-h-[80vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                <Wand2 className="w-5 h-5 text-purple-500" />
+                                Auto-Schedule Results
+                            </h2>
+                            <button onClick={() => setScheduleReport(null)} className="text-neutral-500 hover:text-white"><X className="w-5 h-5" /></button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="flex items-center gap-4 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
+                                <div className="p-2 bg-green-500 rounded-full text-black">
+                                    <CheckCircle className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-green-400 font-bold uppercase">Success</p>
+                                    <p className="text-2xl font-bold text-white">{scheduleReport.success_count} Bookings Created</p>
+                                </div>
+                            </div>
+
+                            {scheduleReport.failed_assignments.length > 0 ? (
+                                <div>
+                                    <h4 className="text-sm font-bold text-neutral-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                                        <AlertCircle className="w-4 h-4 text-red-500" />
+                                        Missed Opportunities ({scheduleReport.failed_assignments.length})
+                                    </h4>
+                                    <div className="space-y-2">
+                                        {scheduleReport.failed_assignments.map((fail, idx) => (
+                                            <div key={idx} className="p-3 bg-neutral-800/50 border border-neutral-800 rounded-lg text-sm">
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <span className="font-semibold text-white">{fail.client}</span>
+                                                    <span className="text-red-400 font-medium">{fail.slot}</span>
+                                                </div>
+                                                <p className="text-neutral-500 text-xs">{fail.reason}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center text-neutral-500 py-4">
+                                    All requested slots were successfully booked!
+                                </div>
+                            )}
+
+                            <button
+                                onClick={() => setScheduleReport(null)}
+                                className="w-full py-3 bg-neutral-800 text-white font-bold rounded-lg hover:bg-neutral-700 transition-colors"
+                            >
+                                Close Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

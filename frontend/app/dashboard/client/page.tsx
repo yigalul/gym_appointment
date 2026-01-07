@@ -1,8 +1,8 @@
 'use client';
 
-import { getTrainers, getAppointments, getCurrentUser } from '@/lib/store';
-import { Trainer, Appointment } from '@/lib/types';
-import { Calendar, User, ChevronLeft, ChevronRight } from 'lucide-react';
+import { getTrainers, getAppointments, getCurrentUser, getNotifications, markNotificationRead } from '@/lib/store';
+import { Trainer, Appointment, Notification } from '@/lib/types';
+import { Calendar, User, ChevronLeft, ChevronRight, Settings, Plus, Trash2, X, Bell } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { startOfWeek, endOfWeek, eachDayOfInterval, format, addDays, subDays, isSameDay, parseISO } from 'date-fns';
 
@@ -12,6 +12,11 @@ export default function ClientDashboardPage() {
     const [trainers, setTrainers] = useState<Trainer[]>([]);
     const [myBookings, setMyBookings] = useState<Appointment[]>([]);
     const [bookingTrainer, setBookingTrainer] = useState<Trainer | null>(null);
+    const [isManageDefaultsOpen, setIsManageDefaultsOpen] = useState(false);
+
+    // Notifications State
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
     // Calendar State
     const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -26,6 +31,7 @@ export default function ClientDashboardPage() {
     useEffect(() => {
         getTrainers().then(setTrainers);
         loadBookings();
+        loadNotifications();
     }, []);
 
     const loadBookings = async () => {
@@ -39,15 +45,92 @@ export default function ClientDashboardPage() {
         setMyBookings(userApps);
     };
 
+    const loadNotifications = async () => {
+        const user = getCurrentUser();
+        if (!user) return;
+        const notifs = await getNotifications(user.id);
+        setNotifications(notifs);
+    };
+
+    const handleReadNotification = async (id: number) => {
+        await markNotificationRead(id);
+        setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    };
+
     const handleBook = (trainer: Trainer) => {
         setBookingTrainer(trainer);
     };
 
+    const unreadCount = notifications.filter(n => !n.is_read).length;
+
     return (
         <div className="space-y-8">
-            <div>
-                <h1 className="text-3xl font-bold text-white">Find a Trainer</h1>
-                <p className="text-neutral-400 mt-2">Browse our expert coaches and book a session.</p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold text-white">Find a Trainer</h1>
+                    <p className="text-neutral-400 mt-2">Browse our expert coaches and book a session.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    {/* Notifications Button */}
+                    <div className="relative">
+                        <button
+                            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                            className="p-2 bg-neutral-800 border border-neutral-700 text-white rounded-lg hover:bg-neutral-700 transition-colors relative"
+                        >
+                            <Bell className="w-5 h-5" />
+                            {unreadCount > 0 && (
+                                <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-neutral-900 transform translate-x-1/4 -translate-y-1/4"></span>
+                            )}
+                        </button>
+
+                        {isNotificationsOpen && (
+                            <div className="absolute right-0 top-full mt-2 w-80 bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl z-50 overflow-hidden">
+                                <div className="p-3 border-b border-neutral-800 flex justify-between items-center bg-neutral-800/50">
+                                    <h3 className="font-bold text-white text-sm">Notifications</h3>
+                                    <span className="text-xs text-neutral-500">{unreadCount} unread</span>
+                                </div>
+                                <div className="max-h-64 overflow-y-auto">
+                                    {notifications.length === 0 ? (
+                                        <div className="p-4 text-center text-neutral-500 text-sm">No notifications</div>
+                                    ) : (
+                                        notifications.map(notif => (
+                                            <div
+                                                key={notif.id}
+                                                className={`p-3 border-b border-neutral-800 last:border-b-0 hover:bg-neutral-800/50 transition-colors ${!notif.is_read ? 'bg-blue-500/5' : ''}`}
+                                            >
+                                                <div className="flex justify-between items-start gap-2">
+                                                    <p className={`text-sm ${!notif.is_read ? 'text-white' : 'text-neutral-400'}`}>
+                                                        {notif.message}
+                                                    </p>
+                                                    {!notif.is_read && (
+                                                        <button
+                                                            onClick={() => handleReadNotification(notif.id)}
+                                                            className="text-blue-500 hover:text-blue-400"
+                                                            title="Mark as read"
+                                                        >
+                                                            <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <p className="text-[10px] text-neutral-600 mt-1">
+                                                    {format(parseISO(notif.created_at), 'MMM d, h:mm a')}
+                                                </p>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <button
+                        onClick={() => setIsManageDefaultsOpen(true)}
+                        className="px-4 py-2 bg-neutral-800 border border-neutral-700 text-white rounded-lg hover:bg-neutral-700 transition-colors flex items-center gap-2 text-sm font-medium"
+                    >
+                        <Settings className="w-4 h-4" />
+                        Manage Defaults
+                    </button>
+                </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
@@ -161,6 +244,12 @@ export default function ClientDashboardPage() {
                 </div>
             </div>
 
+            {/* Defaults Management Modal */}
+            <DefaultScheduleModal
+                isOpen={isManageDefaultsOpen}
+                onClose={() => setIsManageDefaultsOpen(false)}
+            />
+
             <BookingModal
                 isOpen={!!bookingTrainer}
                 trainer={bookingTrainer}
@@ -169,6 +258,109 @@ export default function ClientDashboardPage() {
                     loadBookings(); // Refresh list after booking
                 }}
             />
+        </div>
+    );
+}
+
+function DefaultScheduleModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+    const user = getCurrentUser();
+    const [slots, setSlots] = useState<{ day_of_week: number; start_time: string }[]>([]);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        if (isOpen && user) {
+            setSlots(user.default_slots || []);
+        }
+    }, [isOpen, user]);
+
+    const handleSave = async () => {
+        if (!user) return;
+        setIsSaving(true);
+        // Import dynamically to avoid circular dep issues in this snippet if generic
+        const { updateClientDefaults } = await import('@/lib/store');
+        await updateClientDefaults(user.id, slots);
+        setIsSaving(false);
+        onClose();
+        // Force reload or state update handled by store update mostly
+        window.location.reload(); // Simple refresh to show new state
+    };
+
+    const addSlot = () => {
+        setSlots([...slots, { day_of_week: 1, start_time: '09:00' }]);
+    };
+
+    const removeSlot = (idx: number) => {
+        const newSlots = [...slots];
+        newSlots.splice(idx, 1);
+        setSlots(newSlots);
+    };
+
+    const updateSlot = (idx: number, field: 'day_of_week' | 'start_time', value: any) => {
+        const newSlots = [...slots];
+        newSlots[idx] = { ...newSlots[idx], [field]: value };
+        setSlots(newSlots);
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-md p-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-xl font-bold text-white">Manage Default Schedule</h2>
+                    <button onClick={onClose} className="text-neutral-500 hover:text-white"><X className="w-5 h-5" /></button>
+                </div>
+
+                <div className="space-y-4 mb-6">
+                    <p className="text-sm text-neutral-400">
+                        Set your preferred weekly training times. The Auto-Scheduler will try to book these for you automatically.
+                    </p>
+
+                    {slots.map((slot, idx) => (
+                        <div key={idx} className="flex gap-2 items-center">
+                            <select
+                                value={slot.day_of_week}
+                                onChange={(e) => updateSlot(idx, 'day_of_week', parseInt(e.target.value))}
+                                className="bg-neutral-800 border border-neutral-700 text-white rounded p-2 text-sm flex-1"
+                            >
+                                <option value={0}>Monday</option>
+                                <option value={1}>Tuesday</option>
+                                <option value={2}>Wednesday</option>
+                                <option value={3}>Thursday</option>
+                                <option value={4}>Friday</option>
+                                <option value={5}>Saturday</option>
+                                <option value={6}>Sunday</option>
+                            </select>
+                            <select
+                                value={slot.start_time}
+                                onChange={(e) => updateSlot(idx, 'start_time', e.target.value)}
+                                className="bg-neutral-800 border border-neutral-700 text-white rounded p-2 text-sm w-24"
+                            >
+                                {Array.from({ length: 14 }, (_, i) => i + 7).map(h => (
+                                    <option key={h} value={`${h.toString().padStart(2, '0')}:00`}>
+                                        {h}:00
+                                    </option>
+                                ))}
+                            </select>
+                            <button onClick={() => removeSlot(idx)} className="p-2 text-red-500 hover:bg-neutral-800 rounded">
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        </div>
+                    ))}
+
+                    <button onClick={addSlot} className="w-full py-2 border border-dashed border-neutral-700 text-neutral-400 rounded hover:bg-neutral-800 hover:text-white transition-colors text-sm flex items-center justify-center gap-2">
+                        <Plus className="w-4 h-4" /> Add Slot
+                    </button>
+                </div>
+
+                <button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-500 transition-colors"
+                >
+                    {isSaving ? 'Saving...' : 'Save Preferences'}
+                </button>
+            </div>
         </div>
     );
 }

@@ -86,3 +86,19 @@ class Trainer(TrainerBase):
 
     class Config:
         from_attributes = True
+
+# --- Notification Schemas ---
+class NotificationBase(BaseModel):
+    user_id: int
+    message: str
+    is_read: bool = False
+    created_at: str
+
+class NotificationCreate(NotificationBase):
+    pass
+
+class Notification(NotificationBase):
+    id: int
+    
+    class Config:
+        from_attributes = True

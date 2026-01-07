@@ -41,3 +41,11 @@ export interface Appointment {
   start_time: string; // ISO Date string
   status: 'confirmed' | 'pending' | 'cancelled';
 }
+
+export interface Notification {
+  id: number;
+  user_id: number;
+  message: string;
+  is_read: boolean;
+  created_at: string; // ISO Date string
+}

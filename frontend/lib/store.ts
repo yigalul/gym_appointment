@@ -130,6 +130,31 @@ export async function createClientUser(email: string, defaultSlots: { day_of_wee
     }
 }
 
+// Update User Defaults Only
+export async function updateClientDefaults(userId: number, defaultSlots: { day_of_week: number; start_time: string }[]): Promise<boolean> {
+    try {
+        const res = await fetch(`${API_Base}/users/${userId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                default_slots: defaultSlots
+            })
+        });
+        if (!res.ok) throw new Error('Failed to update defaults');
+
+        // Update local storage if current user
+        if (CURRENT_USER && CURRENT_USER.id === userId) {
+            const updatedUser = { ...CURRENT_USER, default_slots: defaultSlots };
+            loginUser(updatedUser);
+        }
+
+        return true;
+    } catch (error) {
+        console.error(error);
+        return false;
+    }
+}
+
 export async function updateClientUser(id: number, email: string, defaultSlots: { day_of_week: number; start_time: string }[], weeklyWorkoutLimit: number): Promise<boolean> {
     try {
         const userRes = await fetch(`${API_Base}/users/${id}`, {
@@ -198,6 +223,59 @@ export async function cancelAppointment(appointmentId: number): Promise<boolean>
             method: 'PUT',
         });
         if (!res.ok) throw new Error('Failed to cancel appointment');
+        return true;
+    } catch (error) {
+        console.error(error);
+        return false;
+    }
+}
+
+export async function autoScheduleWeek(weekStartDate: string): Promise<{ success_count: number; failed_assignments: any[] } | null> {
+    try {
+        const res = await fetch(`${API_Base}/appointments/auto-schedule`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ week_start_date: weekStartDate })
+        });
+
+        if (!res.ok) throw new Error('Failed to run auto-schedule');
+        return res.json();
+    } catch (error) {
+        console.error(error);
+        return null;
+    }
+}
+
+export async function clearWeekAppointments(weekStartDate: string): Promise<boolean> {
+    try {
+        const res = await fetch(`${API_Base}/appointments/week/${weekStartDate}`, {
+            method: 'DELETE',
+        });
+        if (!res.ok) throw new Error('Failed to clear week');
+        return true;
+    } catch (error) {
+        console.error(error);
+        return false;
+    }
+}
+
+export async function getNotifications(userId: number): Promise<import('./types').Notification[]> {
+    try {
+        const res = await fetch(`${API_Base}/users/${userId}/notifications`);
+        if (!res.ok) throw new Error('Failed to fetch notifications');
+        return res.json();
+    } catch (error) {
+        console.error(error);
+        return [];
+    }
+}
+
+export async function markNotificationRead(id: number): Promise<boolean> {
+    try {
+        const res = await fetch(`${API_Base}/notifications/${id}/read`, {
+            method: 'PUT',
+        });
+        if (!res.ok) throw new Error('Failed to mark notification as read');
         return true;
     } catch (error) {
         console.error(error);

@@ -14,6 +14,7 @@ class User(Base):
     trainer_profile = relationship("Trainer", back_populates="user", uselist=False)
     client_appointments = relationship("Appointment", back_populates="client")
     default_slots = relationship("ClientDefaultSlot", back_populates="client")
+    notifications = relationship("Notification", back_populates="user")
 
 
 class ClientDefaultSlot(Base):
@@ -67,3 +68,15 @@ class Appointment(Base):
 
     trainer = relationship("Trainer", back_populates="appointments")
     client = relationship("User", back_populates="client_appointments")
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    message = Column(String)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(String) # ISO format
+
+    user = relationship("User", back_populates="notifications")
