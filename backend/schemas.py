@@ -25,6 +25,10 @@ class UserCreate(UserBase):
     password: str
     default_slots: List[ClientDefaultSlotCreate] = []
 
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
 class UserUpdate(BaseModel):
     email: Optional[str] = None
     weekly_workout_limit: Optional[int] = None

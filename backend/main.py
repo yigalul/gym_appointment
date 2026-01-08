@@ -100,6 +100,17 @@ def seed_db(force: bool = False, db: Session = Depends(get_db)):
     return seed_data(db)
 
 
+@app.post("/login", response_model=schemas.User)
+def login(creds: schemas.UserLogin, db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.email == creds.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user.hashed_password != creds.password:
+         raise HTTPException(status_code=401, detail="Incorrect credentials")
+         
+    return user
+
 @app.post("/users/", response_model=schemas.User)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = models.User(email=user.email, hashed_password=user.password, role=user.role)

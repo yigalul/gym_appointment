@@ -32,6 +32,21 @@ export function getCurrentUser(): User | null {
     return null;
 }
 
+export async function loginUserViaApi(email: string, password: string): Promise<User | null> {
+    try {
+        const res = await fetch(`${API_Base}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+        if (!res.ok) return null;
+        return res.json();
+    } catch (error) {
+        console.error(error);
+        return null;
+    }
+}
+
 export async function getUsers(): Promise<User[]> {
     try {
         const res = await fetch(`${API_Base}/users/`);

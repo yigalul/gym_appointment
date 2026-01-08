@@ -1,8 +1,7 @@
 'use client';
 
-import { getUsers, loginUser } from '@/lib/store';
+import { getUsers, loginUser, loginUserViaApi } from '@/lib/store';
 import { User } from '@/lib/types';
-import { getCurrentUser } from '@/lib/store'; // Ensure this is exported if I used it, otherwise just loginUser
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -21,27 +20,40 @@ export default function LoginPage() {
         });
     }, []);
 
-    const performLogin = (uEmail: string, uPassword: string = 'GymStrong2026!') => {
+    const performLogin = async (uEmail: string, uPassword: string = '') => {
         setError('');
+        setLoading(true);
 
-        const user = users.find(u => u.email === uEmail.trim());
-
-        if (user) {
-            // Demo password check - strictly for demo purposes
-            if (uPassword === 'GymStrong2026!') {
-                loginUser(user);
-                if (user.role === 'admin') {
-                    router.push('/dashboard/admin');
-                } else if (user.role === 'trainer') {
-                    router.push('/dashboard');
-                } else {
-                    router.push('/dashboard/client');
-                }
-            } else {
-                setError('Invalid credentials');
+        // 1. Try Manual API Login
+        if (uPassword && uPassword !== 'GymStrong2026!') {
+            const user = await loginUserViaApi(uEmail, uPassword);
+            if (user) {
+                finalizeLogin(user);
+                return;
             }
+            setError('Invalid email or password.');
+            setLoading(false);
+            return;
+        }
+
+        // 2. Fallback to Demo Login (if password is default or empty/shortcut)
+        const user = users.find(u => u.email === uEmail.trim());
+        if (user) {
+            finalizeLogin(user);
         } else {
-            setError('User not found');
+            setError('User not found.');
+            setLoading(false);
+        }
+    };
+
+    const finalizeLogin = (user: User) => {
+        loginUser(user);
+        if (user.role === 'admin') {
+            router.push('/dashboard/admin');
+        } else if (user.role === 'trainer') {
+            router.push('/dashboard');
+        } else {
+            router.push('/dashboard/client');
         }
     };
 
@@ -147,6 +159,36 @@ export default function LoginPage() {
                                 </button>
                             ))}
                         </div>
+
+                    </div>
+
+                    <div className="border-t border-neutral-800 pt-6 mt-6">
+                        <div className="text-center text-xs text-neutral-500 uppercase tracking-widest mb-4">Or Login Manually</div>
+                        <div className="space-y-3">
+                            <input
+                                type="email"
+                                placeholder="Email"
+                                value={email}
+                                onChange={e => setEmail(e.target.value)}
+                                className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none transition-colors placeholder-neutral-600"
+                                required
+                            />
+                            <input
+                                type="password"
+                                placeholder="Password"
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                                className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none transition-colors placeholder-neutral-600"
+                                required
+                            />
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loading ? 'Logging in...' : 'Sign In'}
+                            </button>
+                        </div>
                     </div>
                 </form>
 
@@ -166,7 +208,7 @@ export default function LoginPage() {
                         [Reset Demo Data]
                     </button>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }
