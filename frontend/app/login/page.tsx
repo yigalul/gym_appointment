@@ -120,6 +120,12 @@ export default function LoginPage() {
                         </div>
                     </div>
                 </form>
+
+                <div className="mt-6 pt-4 border-t border-neutral-800 text-center">
+                    <p className="text-[10px] text-neutral-600 uppercase tracking-wider font-mono">
+                        API: {process.env.NEXT_PUBLIC_API_URL || 'LOCALHOST (Checking...)'}
+                    </p>
+                </div>
             </div>
         </div>
     );
