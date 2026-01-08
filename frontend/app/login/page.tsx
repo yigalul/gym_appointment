@@ -150,10 +150,21 @@ export default function LoginPage() {
                     </div>
                 </form>
 
-                <div className="mt-6 pt-4 border-t border-neutral-800 text-center">
+                <div className="mt-6 pt-4 border-t border-neutral-800 text-center space-y-2">
                     <p className="text-[10px] text-neutral-600 uppercase tracking-wider font-mono">
                         API: {process.env.NEXT_PUBLIC_API_URL || 'LOCALHOST (Checking...)'}
                     </p>
+                    <button
+                        onClick={async () => {
+                            if (!confirm("Reset all data to default demo set? This cannot be undone.")) return;
+                            const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                            await fetch(`${API}/test-seed?force=true`);
+                            window.location.reload();
+                        }}
+                        className="text-[10px] text-red-900 hover:text-red-500 underline transition-colors"
+                    >
+                        [Reset Demo Data]
+                    </button>
                 </div>
             </div>
         </div>

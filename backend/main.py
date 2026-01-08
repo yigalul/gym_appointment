@@ -79,7 +79,24 @@ def startup_event():
 # ... (Existing Endpoints) ...
 
 @app.get("/test-seed")
-def seed_db(db: Session = Depends(get_db)):
+def seed_db(force: bool = False, db: Session = Depends(get_db)):
+    if force:
+        print("--- FORCING DATABASE RESET ---")
+        try:
+            db.query(models.Appointment).delete()
+            db.query(models.Availability).delete()
+            # Trainers and Clients are Users, but Trainer model links to User
+            db.query(models.Trainer).delete() 
+            db.query(models.ClientDefaultSlot).delete()
+            db.query(models.Notification).delete()
+            db.query(models.User).delete()
+            db.commit()
+            print("--- DATABASE WIPED ---")
+        except Exception as e:
+            print(f"Error wiping DB: {e}")
+            db.rollback()
+            return {"error": str(e)}
+            
     return seed_data(db)
 
 
