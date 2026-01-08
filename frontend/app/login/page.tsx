@@ -68,6 +68,35 @@ export default function LoginPage() {
                             <p className="font-semibold text-neutral-400">Quick Login Shortcuts</p>
                         </div>
 
+                        {/* Empty State / Seed Button */}
+                        {!loading && users.length === 0 && (
+                            <div className="text-center py-4">
+                                <p className="text-neutral-500 text-sm mb-3">No users found.</p>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        setLoading(true);
+                                        const API_Base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                                        try {
+                                            await fetch(`${API_Base}/test-seed`);
+                                            // Wait a sec then reload users
+                                            setTimeout(async () => {
+                                                const data = await getUsers();
+                                                setUsers(data);
+                                                setLoading(false);
+                                            }, 1000);
+                                        } catch (err) {
+                                            console.error(err);
+                                            setLoading(false);
+                                        }
+                                    }}
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition-colors w-full"
+                                >
+                                    ⚡️ Initialize Demo Data
+                                </button>
+                            </div>
+                        )}
+
                         {/* Admin Section */}
                         <div className="space-y-1">
                             <p className="text-blue-400 font-bold sticky top-0 bg-neutral-900/90 py-1 px-1 rounded-sm backdrop-blur-sm">Admin</p>
