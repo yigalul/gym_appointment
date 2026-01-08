@@ -1,6 +1,6 @@
 'use client';
 
-import { getTrainers, getUsers, createTrainerUser, deleteTrainer, createClientUser, updateClientUser, getAppointments, cancelAppointment, autoScheduleWeek, clearWeekAppointments } from '@/lib/store';
+import { getTrainers, getUsers, createTrainerUser, deleteTrainer, createClientUser, updateClientUser, deleteUser, getAppointments, cancelAppointment, autoScheduleWeek, clearWeekAppointments } from '@/lib/store';
 import { User, Trainer, Appointment } from '@/lib/types';
 import { Users, UserPlus, Trash2, Plus, X, Pencil, Calendar, XCircle, Search, ChevronLeft, ChevronRight, Wand2, AlertCircle, CheckCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -179,6 +179,16 @@ export default function AdminDashboardPage() {
         }
     };
 
+    const handleDeleteClient = async (userId: number) => {
+        if (!confirm('Are you sure? This will delete the user and all their appointments.')) return;
+        const success = await deleteUser(userId);
+        if (success) {
+            refreshData();
+        } else {
+            alert('Failed to delete client.');
+        }
+    };
+
     const dayName = (d: number) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d];
 
     const handleCancelAppointment = async (id: number) => {
@@ -191,6 +201,12 @@ export default function AdminDashboardPage() {
             alert('Failed to cancel appointment.');
         }
     };
+
+    // ... (rest of the file until the client list)
+
+    // In the Client List Mapping (around line 610)
+
+
 
     const [confirmSchedule, setConfirmSchedule] = useState(false);
 
@@ -623,13 +639,22 @@ export default function AdminDashboardPage() {
                                             </div>
                                         )}
                                     </div>
-                                    <button
-                                        onClick={() => startEditClient(user)}
-                                        className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
-                                        title="Edit Client Attributes"
-                                    >
-                                        <Pencil className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => startEditClient(user)}
+                                            className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
+                                            title="Edit Client Attributes"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteClient(user.id)}
+                                            className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                                            title="Delete Client"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
                             ))
                         )}

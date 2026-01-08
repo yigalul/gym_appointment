@@ -192,6 +192,19 @@ export async function updateClientUser(id: number, email: string, defaultSlots: 
     }
 }
 
+export async function deleteUser(userId: number): Promise<boolean> {
+    try {
+        const res = await fetch(`${API_Base}/users/${userId}`, {
+            method: 'DELETE',
+        });
+        if (!res.ok) throw new Error('Failed to delete user');
+        return true;
+    } catch (error) {
+        console.error(error);
+        return false;
+    }
+}
+
 // --- Availability ---
 
 export async function addAvailability(trainerId: number, availability: Partial<Availability>): Promise<Availability | null> {
