@@ -21,6 +21,7 @@ export interface Availability {
   day_of_week: number; // 0 = Sunday, 1 = Monday, etc.
   start_time: string; // HH:mm format, e.g. "09:00"
   end_time: string;   // HH:mm format, e.g. "17:00"
+  is_recurring?: boolean;
 }
 
 export interface Trainer {

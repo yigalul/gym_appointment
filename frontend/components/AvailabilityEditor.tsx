@@ -25,7 +25,7 @@ export default function AvailabilityEditor({ availabilities, onAdd, onDelete }: 
             await onAdd({
                 day_of_week: newDay,
                 start_time: shift === 'morning' ? '07:00' : '15:00',
-                end_time: shift === 'morning' ? '12:00' : '20:00',
+                end_time: shift === 'morning' ? '13:00' : '21:00',
                 is_recurring: true
             });
         } catch (err: any) {
