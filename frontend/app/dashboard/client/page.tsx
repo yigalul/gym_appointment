@@ -229,7 +229,7 @@ export default function ClientDashboardPage() {
                                                                 </span>
                                                             </div>
                                                             <div className="text-neutral-400 mt-1">
-                                                                {trainer?.specialty}
+                                                                {trainer?.role}
                                                             </div>
                                                         </div>
                                                     );
