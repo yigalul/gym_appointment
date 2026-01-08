@@ -172,6 +172,33 @@ def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Dep
     db.refresh(db_user)
     return db_user
 
+@app.delete("/users/{user_id}", status_code=204)
+def delete_user(user_id: int, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 1. Clean up associated Trainer if exists
+    trainer = db.query(models.Trainer).filter(models.Trainer.user_id == user_id).first()
+    if trainer:
+        # Cascade delete trainer stuff
+        db.query(models.Appointment).filter(models.Appointment.trainer_id == trainer.id).delete()
+        db.query(models.Availability).filter(models.Availability.trainer_id == trainer.id).delete()
+        db.delete(trainer)
+
+    # 2. Clean up Client Slots
+    db.query(models.ClientDefaultSlot).filter(models.ClientDefaultSlot.user_id == user_id).delete()
+
+    # 3. Clean up Appointments (as Client)
+    db.query(models.Appointment).filter(models.Appointment.client_id == user_id).delete()
+    
+    # 4. Clean up Notifications
+    db.query(models.Notification).filter(models.Notification.user_id == user_id).delete()
+
+    db.delete(db_user)
+    db.commit()
+    return None
+
 # --- Trainer Endpoints ---
 
 @app.post("/trainers/", response_model=schemas.Trainer)
