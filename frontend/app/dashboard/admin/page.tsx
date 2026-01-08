@@ -45,6 +45,7 @@ export default function AdminDashboardPage() {
     // Trainer Form
     const [newName, setNewName] = useState('');
     const [newEmail, setNewEmail] = useState('');
+    const [newPassword, setNewPassword] = useState('');
     const [newRole, setNewRole] = useState('Strength Coach');
 
     // Client Form
@@ -84,7 +85,9 @@ export default function AdminDashboardPage() {
 
     const resetForms = () => {
         setNewName('');
+        setNewName('');
         setNewEmail('');
+        setNewPassword('');
         setClientEmail('');
         setClientWeeklyLimit(3);
         setDefaultSlots([]);
@@ -95,7 +98,7 @@ export default function AdminDashboardPage() {
 
     const handleAddTrainer = async (e: React.FormEvent) => {
         e.preventDefault();
-        const success = await createTrainerUser(newName, newRole, newEmail, "Expert trainer.");
+        const success = await createTrainerUser(newName, newRole, newEmail, "Expert trainer.", newPassword || 'password123');
         if (success) {
             alert('Trainer added successfully!');
             resetForms();
@@ -107,7 +110,7 @@ export default function AdminDashboardPage() {
 
     const handleAddClient = async (e: React.FormEvent) => {
         e.preventDefault();
-        const success = await createClientUser(clientEmail, defaultSlots, clientWeeklyLimit);
+        const success = await createClientUser(clientEmail, newPassword || 'GymStrong2026!', defaultSlots, clientWeeklyLimit);
         if (success) {
             alert('Client added successfully!');
             resetForms();
@@ -386,6 +389,11 @@ export default function AdminDashboardPage() {
                                     className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                                 />
                                 <input
+                                    type="password" placeholder="Password" required
+                                    value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                                    className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                />
+                                <input
                                     type="text" placeholder="Specialty / Role" required
                                     value={newRole} onChange={e => setNewRole(e.target.value)}
                                     className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
@@ -408,6 +416,13 @@ export default function AdminDashboardPage() {
                                     value={clientEmail} onChange={e => setClientEmail(e.target.value)}
                                     className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                                 />
+                                {!isEditing && (
+                                    <input
+                                        type="password" placeholder="Password" required
+                                        value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                                        className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                    />
+                                )}
                                 <div className="flex flex-col gap-1">
                                     <label className="text-xs text-neutral-400">Weekly Workout Limit</label>
                                     <input
@@ -643,8 +658,8 @@ export default function AdminDashboardPage() {
                                 onClick={handleAutoSchedule}
                                 disabled={isScheduling}
                                 className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-2 mr-2 ${confirmSchedule
-                                        ? 'bg-blue-600 text-white animate-pulse font-bold'
-                                        : 'bg-blue-600 hover:bg-blue-500 text-white'
+                                    ? 'bg-blue-600 text-white animate-pulse font-bold'
+                                    : 'bg-blue-600 hover:bg-blue-500 text-white'
                                     }`}
                             >
                                 <Wand2 className="w-3 h-3" />

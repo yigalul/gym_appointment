@@ -78,13 +78,14 @@ export async function deleteTrainer(trainerId: number): Promise<boolean> {
     }
 }
 
-export async function createTrainerUser(name: string, role: string, email: string, bio: string): Promise<boolean> {
+// Updated to accept password
+export async function createTrainerUser(name: string, role: string, email: string, bio: string, password: string): Promise<boolean> {
     try {
         // 1. Create User
         const userRes = await fetch(`${API_Base}/users/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password: 'password123', role: 'trainer' })
+            body: JSON.stringify({ email, password, role: 'trainer' })
         });
         if (!userRes.ok) throw new Error('Failed to create user');
         const user = await userRes.json();
@@ -110,14 +111,14 @@ export async function createTrainerUser(name: string, role: string, email: strin
     }
 }
 
-export async function createClientUser(email: string, defaultSlots: { day_of_week: number; start_time: string }[], weeklyWorkoutLimit: number = 3): Promise<boolean> {
+export async function createClientUser(email: string, password: string, defaultSlots: { day_of_week: number; start_time: string }[], weeklyWorkoutLimit: number = 3): Promise<boolean> {
     try {
         const userRes = await fetch(`${API_Base}/users/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 email,
-                password: 'GymStrong2026!',
+                password,
                 role: 'client',
                 default_slots: defaultSlots,
                 weekly_workout_limit: weeklyWorkoutLimit
@@ -130,6 +131,7 @@ export async function createClientUser(email: string, defaultSlots: { day_of_wee
         return false;
     }
 }
+
 
 // Update User Defaults Only
 export async function updateClientDefaults(userId: number, defaultSlots: { day_of_week: number; start_time: string }[]): Promise<boolean> {
