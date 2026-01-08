@@ -87,40 +87,29 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
     };
 
     const isSlotAvailable = (day: Date, hour: number) => {
-        // 1. Basic Availability (Trainer's schedule)
-        const dayOfWeek = day.getDay(); // 0-6
-        const hourStr = hour.toString().padStart(2, '0') + ':00';
+        // 1. Date Check (Cannot book past)
+        if (isBefore(day, startOfToday())) return 'past';
 
-        // Check if hour is within any availability range (Start <= Time < End)
-        const validSlot = trainer.availabilities.find(s => {
-            if (s.day_of_week !== dayOfWeek) return false;
-
-            // Compare strings directly works for HH:MM format ("07:00" <= "09:00" < "13:00")
-            // We use < s.end_time because if end is 13:00, last slot is 12:00.
-            return s.start_time <= hourStr && hourStr < s.end_time;
-        });
-
-        if (!validSlot) return 'unavailable'; // Trainer not working
-
-        // 2. Date Check (Cannot book past)
-        if (isBefore(day, startOfToday())) return 'unavailable';
-
-        // 3. Client Restriction: Morning (7-12) and Evening (15-20)
+        // 2. Client Restriction: Morning (7-12) and Evening (15-20)
         // (Assuming this modal is primarily for clients or follows client rules)
         const isMorning = hour >= 7 && hour <= 12;
         const isEvening = hour >= 15 && hour <= 20;
 
         if (!isMorning && !isEvening) return 'unavailable';
 
-        const slotTimeISO = `${format(day, 'yyyy-MM-dd')}T${hourStr}`;
+        // 3. Basic Availability (Trainer's schedule)
+        const dayOfWeek = day.getDay(); // 0-6
+        const hourStr = hour.toString().padStart(2, '0') + ':00';
 
-        // 3. Trainer Capacity
-        const trainerApps = appointments.filter(a =>
-            a.trainer_id === trainer.id &&
-            a.start_time === slotTimeISO &&
-            a.status !== 'cancelled'
-        );
-        if (trainerApps.length >= 2) return 'booked'; // Full
+        // Check if hour is within any availability range (Start <= Time < End)
+        const validSlot = trainer.availabilities.find(s => {
+            if (s.day_of_week !== dayOfWeek) return false;
+            return s.start_time <= hourStr && hourStr < s.end_time;
+        });
+
+        if (!validSlot) return 'unavailable'; // Trainer not working
+
+        const slotTimeISO = `${format(day, 'yyyy-MM-dd')}T${hourStr}`;
 
         // 4. User Duplicate
         const user = getCurrentUser();
@@ -130,8 +119,16 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
                 a.start_time === slotTimeISO &&
                 a.status !== 'cancelled'
             );
-            if (userBooked) return 'booked'; // Already booked
+            if (userBooked) return 'joined'; // Already booked by YOU
         }
+
+        // 5. Trainer Capacity
+        const trainerApps = appointments.filter(a =>
+            a.trainer_id === trainer.id &&
+            a.start_time === slotTimeISO &&
+            a.status !== 'cancelled'
+        );
+        if (trainerApps.length >= 2) return 'full'; // Full
 
         return 'available';
     };
@@ -205,13 +202,17 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
                                                             >
                                                                 <Check className="w-3 h-3 text-green-400 opacity-0 group-hover:opacity-100" />
                                                             </button>
-                                                        ) : status === 'booked' ? (
-                                                            <div className="w-full h-full bg-neutral-800/50 rounded border border-neutral-800 flex items-center justify-center">
-                                                                <span className="text-[10px] text-neutral-600">Full</span>
+                                                        ) : status === 'full' ? (
+                                                            <div className="w-full h-full bg-red-500/10 rounded border border-red-500/20 flex items-center justify-center cursor-not-allowed">
+                                                                <span className="text-[10px] text-red-500 font-medium">Full</span>
+                                                            </div>
+                                                        ) : status === 'joined' ? (
+                                                            <div className="w-full h-full bg-blue-500/20 rounded border border-blue-500/30 flex items-center justify-center">
+                                                                <span className="text-[10px] text-blue-400 font-medium">Joined</span>
                                                             </div>
                                                         ) : (
-                                                            // Unavailable
-                                                            <div className="w-full h-full"></div>
+                                                            // Unavailable or Past
+                                                            <div className="w-full h-full bg-neutral-950/30"></div>
                                                         )}
                                                     </div>
                                                 );
