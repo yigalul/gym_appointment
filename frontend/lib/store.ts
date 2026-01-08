@@ -1,6 +1,7 @@
-import { Trainer, Appointment, User } from './types';
+import { Trainer, Appointment, User, Availability } from './types';
 
-const API_Base = 'http://127.0.0.1:8000';
+// Use environment variable for production, fallback to localhost for dev
+const API_Base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // Mock Auth State (in a real app, use Context or a library)
 export let CURRENT_USER: User | null = null;
@@ -174,6 +175,38 @@ export async function updateClientUser(id: number, email: string, defaultSlots: 
     }
 }
 
+// --- Availability ---
+
+export async function addAvailability(trainerId: number, availability: Partial<Availability>): Promise<Availability | null> {
+    try {
+        const res = await fetch(`${API_Base}/trainers/${trainerId}/availability/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(availability),
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'Failed to add availability');
+        }
+        return await res.json();
+    } catch (error) {
+        console.error("Add Availability Error:", error);
+        throw error; // Re-throw to handle in UI
+    }
+}
+
+export async function deleteAvailability(availabilityId: number): Promise<boolean> {
+    try {
+        const res = await fetch(`${API_Base}/availability/${availabilityId}`, {
+            method: 'DELETE',
+        });
+        return res.ok;
+    } catch (error) {
+        console.error("Delete Availability Error:", error);
+        return false;
+    }
+}
+
 // Fetch appointments
 export async function getAppointments(): Promise<Appointment[]> {
     try {
@@ -248,6 +281,7 @@ export async function autoScheduleWeek(weekStartDate: string): Promise<{ success
 
 export async function clearWeekAppointments(weekStartDate: string): Promise<boolean> {
     try {
+        console.log(`Calling DELETE ${API_Base}/appointments/week/${weekStartDate}`);
         const res = await fetch(`${API_Base}/appointments/week/${weekStartDate}`, {
             method: 'DELETE',
         });

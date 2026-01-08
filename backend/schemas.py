@@ -43,6 +43,7 @@ class AvailabilityBase(BaseModel):
     day_of_week: int
     start_time: str
     end_time: str
+    is_recurring: bool = True
 
 class Availability(AvailabilityBase):
     id: int

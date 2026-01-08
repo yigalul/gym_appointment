@@ -91,14 +91,26 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
         const dayOfWeek = day.getDay(); // 0-6
         const hourStr = hour.toString().padStart(2, '0') + ':00';
 
-        const validSlot = trainer.availabilities.find(
-            s => s.day_of_week === dayOfWeek && s.start_time.startsWith(hour.toString().padStart(2, '0'))
-        );
+        // Check if hour is within any availability range (Start <= Time < End)
+        const validSlot = trainer.availabilities.find(s => {
+            if (s.day_of_week !== dayOfWeek) return false;
+
+            // Compare strings directly works for HH:MM format ("07:00" <= "09:00" < "13:00")
+            // We use < s.end_time because if end is 13:00, last slot is 12:00.
+            return s.start_time <= hourStr && hourStr < s.end_time;
+        });
 
         if (!validSlot) return 'unavailable'; // Trainer not working
 
         // 2. Date Check (Cannot book past)
         if (isBefore(day, startOfToday())) return 'unavailable';
+
+        // 3. Client Restriction: Morning (7-12) and Evening (15-20)
+        // (Assuming this modal is primarily for clients or follows client rules)
+        const isMorning = hour >= 7 && hour <= 12;
+        const isEvening = hour >= 15 && hour <= 20;
+
+        if (!isMorning && !isEvening) return 'unavailable';
 
         const slotTimeISO = `${format(day, 'yyyy-MM-dd')}T${hourStr}`;
 

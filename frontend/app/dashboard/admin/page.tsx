@@ -59,6 +59,16 @@ export default function AdminDashboardPage() {
     // Auto-Schedule Report State
     const [scheduleReport, setScheduleReport] = useState<{ success_count: number; failed_assignments: any[] } | null>(null);
     const [isScheduling, setIsScheduling] = useState(false);
+    const [hasLastReport, setHasLastReport] = useState(false);
+
+    useEffect(() => {
+        // Check if report exists
+        if (typeof window !== 'undefined') {
+            const stored = localStorage.getItem('last_schedule_report');
+            if (stored) setHasLastReport(true);
+        }
+    }, [scheduleReport]); // Update when report changes
+
 
     const refreshData = () => {
         getUsers().then(setUsers);
@@ -169,32 +179,89 @@ export default function AdminDashboardPage() {
         }
     };
 
+    const [confirmSchedule, setConfirmSchedule] = useState(false);
+
+    // Auto-reset confirmation
+    useEffect(() => {
+        if (confirmSchedule) {
+            const timeout = setTimeout(() => setConfirmSchedule(false), 3000);
+            return () => clearTimeout(timeout);
+        }
+    }, [confirmSchedule]);
+
     const handleAutoSchedule = async () => {
         if (!currentWeekStart) return;
-        if (!confirm('Run Auto-Scheduler for this week? This will try to book all clients based on their default preferences.')) return;
 
+        if (!confirmSchedule) {
+            setConfirmSchedule(true);
+            return;
+        }
+
+        setConfirmSchedule(false);
         setIsScheduling(true);
         const result = await autoScheduleWeek(format(currentWeekStart, 'yyyy-MM-dd'));
         setIsScheduling(false);
 
         if (result) {
             setScheduleReport(result);
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('last_schedule_report', JSON.stringify(result));
+                setHasLastReport(true);
+            }
             refreshData();
         } else {
-            alert('Failed to run auto-scheduler.');
+            setErrorMsg('Failed to run auto-scheduler.');
         }
     };
 
-    const handleClearWeek = async () => {
-        if (!currentWeekStart) return;
-        if (!confirm('Are you sure you want to CLEA ALL appointments for this week? This action cannot be undone.')) return;
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [successMsg, setSuccessMsg] = useState<string | null>(null);
+    const [confirmClear, setConfirmClear] = useState(false);
 
-        const success = await clearWeekAppointments(format(currentWeekStart, 'yyyy-MM-dd'));
-        if (success) {
-            alert('Week cleared successfully.');
-            refreshData();
-        } else {
-            alert('Failed to clear week.');
+    // Auto-reset confirmation after 3 seconds
+    useEffect(() => {
+        if (confirmClear) {
+            const timeout = setTimeout(() => setConfirmClear(false), 3000);
+            return () => clearTimeout(timeout);
+        }
+    }, [confirmClear]);
+
+    const handleClearWeek = async (e: React.MouseEvent) => {
+        e.preventDefault();
+
+        if (!confirmClear) {
+            setConfirmClear(true);
+            return; // Wait for second click
+        }
+
+        setConfirmClear(false);
+        setErrorMsg(null);
+        setSuccessMsg(null);
+        if (!currentWeekStart) return;
+
+        try {
+            const success = await clearWeekAppointments(format(currentWeekStart, 'yyyy-MM-dd'));
+            if (success) {
+                setSuccessMsg('Week cleared successfully.');
+                refreshData();
+            } else {
+                setErrorMsg('Failed to clear week. Check console for details.');
+            }
+        } catch (err) {
+            console.error(err);
+            setErrorMsg('An error occurred while clearing the week.');
+        }
+    };
+
+    const handleViewLastReport = () => {
+        if (typeof window !== 'undefined') {
+            const stored = localStorage.getItem('last_schedule_report');
+            if (stored) {
+                setScheduleReport(JSON.parse(stored));
+            } else {
+                alert("No previous report found.");
+                setHasLastReport(false);
+            }
         }
     };
 
@@ -252,6 +319,20 @@ export default function AdminDashboardPage() {
                     </button>
                 )}
             </div>
+
+            {errorMsg && (
+                <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl flex justify-between items-center">
+                    <span>{errorMsg}</span>
+                    <button onClick={() => setErrorMsg(null)}><X className="w-5 h-5" /></button>
+                </div>
+            )}
+
+            {successMsg && (
+                <div className="p-4 bg-green-500/10 border border-green-500/20 text-green-400 rounded-xl flex justify-between items-center">
+                    <span>{successMsg}</span>
+                    <button onClick={() => setSuccessMsg(null)}><X className="w-5 h-5" /></button>
+                </div>
+            )}
 
             {/* Top Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -468,7 +549,7 @@ export default function AdminDashboardPage() {
                                                 : 'No schedule'}
                                         </div>
                                         <button
-                                            onClick={() => handleDeleteTrainer(trainer.user_id)}
+                                            onClick={() => handleDeleteTrainer(trainer.user_id || 0)}
                                             className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
                                             title="Delete Trainer"
                                         >
@@ -549,20 +630,34 @@ export default function AdminDashboardPage() {
                             </div>
                             <button
                                 onClick={handleClearWeek}
-                                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-2 mr-2"
+                                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-2 mr-2 ${confirmClear
+                                    ? 'bg-red-600 text-white animate-pulse font-bold'
+                                    : 'bg-red-600/10 text-red-500 hover:bg-red-600 hover:text-white'
+                                    }`}
                                 title="Delete all appointments for this week"
                             >
                                 <Trash2 className="w-3 h-3" />
-                                Clear Week
+                                {confirmClear ? 'Confirm Delete?' : 'Clear Week'}
                             </button>
                             <button
                                 onClick={handleAutoSchedule}
                                 disabled={isScheduling}
-                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-2 mr-2"
+                                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-2 mr-2 ${confirmSchedule
+                                        ? 'bg-blue-600 text-white animate-pulse font-bold'
+                                        : 'bg-blue-600 hover:bg-blue-500 text-white'
+                                    }`}
                             >
                                 <Wand2 className="w-3 h-3" />
-                                {isScheduling ? 'Scheduling...' : 'Auto-Schedule'}
+                                {isScheduling ? 'Scheduling...' : (confirmSchedule ? 'Run Schedule?' : 'Auto-Schedule')}
                             </button>
+                            {hasLastReport && (
+                                <button
+                                    onClick={handleViewLastReport}
+                                    className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium rounded-lg transition-colors border border-neutral-700 mr-2"
+                                >
+                                    View Last Report
+                                </button>
+                            )}
                             <button
                                 onClick={() => setViewMode(viewMode === 'list' ? 'week' : 'list')}
                                 className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium rounded-lg transition-colors border border-neutral-700"

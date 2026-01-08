@@ -11,6 +11,7 @@ export interface User {
   role: 'admin' | 'trainer' | 'client';
   weekly_workout_limit?: number;
   default_slots?: ClientDefaultSlot[];
+  name?: string; // Optional, might not be in basic User response
   // Trainer profile might be linked or fetched separately
 }
 

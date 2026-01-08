@@ -1,7 +1,7 @@
 'use client';
 
 import AvailabilityEditor from '@/components/AvailabilityEditor';
-import { getTrainers } from '@/lib/store';
+import { getTrainers, addAvailability, deleteAvailability } from '@/lib/store';
 import { useEffect, useState } from 'react';
 import { Availability, Trainer } from '@/lib/types';
 
@@ -15,17 +15,26 @@ export default function SchedulePage() {
         });
     }, []);
 
-    const handleSave = async (newAvailability: Availability[]) => {
-        // In a real app, this would be an API call to SAVE
-        console.log('Saving availability:', newAvailability);
-
+    const handleAdd = async (newSlot: Partial<Availability>) => {
         if (!trainer) return;
+        const savedSlot = await addAvailability(trainer.id, newSlot);
+        if (savedSlot) {
+            setTrainer({
+                ...trainer,
+                availabilities: [...(trainer.availabilities || []), savedSlot]
+            });
+        }
+    };
 
-        // Optimistic update locally
-        setTrainer({ ...trainer, availabilities: newAvailability });
-
-        // TODO: Call API to persist
-        // await saveAvailability(trainer.id, newAvailability);
+    const handleDelete = async (id: number) => {
+        if (!trainer) return;
+        const success = await deleteAvailability(id);
+        if (success) {
+            setTrainer({
+                ...trainer,
+                availabilities: (trainer.availabilities || []).filter(a => a.id !== id)
+            });
+        }
     };
 
     if (!trainer) return <div className="text-white">Loading...</div>;
@@ -38,8 +47,9 @@ export default function SchedulePage() {
             </div>
 
             <AvailabilityEditor
-                initialAvailability={trainer.availabilities}
-                onSave={handleSave}
+                availabilities={trainer.availabilities || []}
+                onAdd={handleAdd}
+                onDelete={handleDelete}
             />
         </div>
     );

@@ -21,24 +21,15 @@ export default function LoginPage() {
         });
     }, []);
 
-    const handleLogin = (e: React.FormEvent) => {
-        e.preventDefault();
+    const performLogin = (uEmail: string, uPassword: string = 'GymStrong2026!') => {
         setError('');
 
-        const user = users.find(u => u.email === email.trim());
+        const user = users.find(u => u.email === uEmail.trim());
 
-        // Simple password check (in real app this would be server-side)
-        // For now we check if hashed_password matches input or if it's just a simulation
         if (user) {
-            // For simplicity in this demo, we accept the correct password OR just the user existence if no password provided in UI logic before
-            // checking basic hardcoded passwords for the demo roles:
-            // In a real app, strict server-side validation.
-            // For this demo, we can just check against the universal strong password
-            const isValid = password === 'GymStrong2026!';
-
-            if (isValid) {
+            // Demo password check - strictly for demo purposes
+            if (uPassword === 'GymStrong2026!') {
                 loginUser(user);
-                // Redirect based on role (still needed for routing, but hidden from user)
                 if (user.role === 'admin') {
                     router.push('/dashboard/admin');
                 } else if (user.role === 'trainer') {
@@ -54,89 +45,78 @@ export default function LoginPage() {
         }
     };
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center text-white">Loading...</div>;
+    const handleLogin = (e: React.FormEvent) => {
+        e.preventDefault();
+        performLogin(email, password);
+    };
+
+    // ... (loading state)
 
     return (
         <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
             <div className="w-full max-w-md p-8 bg-neutral-900 border border-neutral-800 rounded-2xl">
-                <div className="text-center mb-8">
-                    <h2 className="text-3xl font-bold text-white">Welcome Back</h2>
-                    <p className="mt-2 text-neutral-400">Please sign in to continue</p>
-                </div>
+                {/* ... (header) ... */}
 
                 <form onSubmit={handleLogin} className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-2">Email</label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            className="w-full p-3 bg-black border border-neutral-800 rounded-lg text-white focus:outline-none focus:border-blue-600 transition-colors"
-                            placeholder="Enter your email"
-                            required
-                        />
-                    </div>
+                    {/* ... (inputs) ... */}
 
-                    <div>
-                        <label className="block text-sm font-medium text-neutral-400 mb-2">Password</label>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full p-3 bg-black border border-neutral-800 rounded-lg text-white focus:outline-none focus:border-blue-600 transition-colors"
-                            placeholder="Enter your password"
-                            required
-                        />
-                    </div>
+                    {/* ... (submit button) ... */}
 
-                    {error && (
-                        <div className="text-red-500 text-sm text-center">{error}</div>
-                    )}
-
-                    <button
-                        type="submit"
-                        className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                        Sign In
-                    </button>
-
-                    <div className="mt-4 p-4 bg-neutral-950/50 rounded text-xs text-neutral-500 space-y-2 max-h-48 overflow-y-auto">
-                        <p className="font-semibold mb-2">Click to auto-fill Demo Credentials (Password: GymStrong2026!):</p>
-
-                        <div className="space-y-1">
-                            <p className="text-blue-400 font-bold">Admin</p>
-                            <button type="button" onClick={() => { setEmail('admin@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
-                                Admin (admin@gym.com)
-                            </button>
+                    <div className="mt-4 p-4 bg-neutral-950/50 rounded text-xs text-neutral-500 space-y-4 max-h-80 overflow-y-auto border border-neutral-900 shadow-inner">
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="text-yellow-500 text-base">⚡️</span>
+                            <p className="font-semibold text-neutral-400">Quick Login Shortcuts</p>
                         </div>
 
+                        {/* Admin Section */}
                         <div className="space-y-1">
-                            <p className="text-purple-400 font-bold">Trainers</p>
-                            <button type="button" onClick={() => { setEmail('sarah@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
-                                Sarah (sarah@gym.com)
-                            </button>
-                            <button type="button" onClick={() => { setEmail('mike@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
-                                Mike (mike@gym.com)
-                            </button>
+                            <p className="text-blue-400 font-bold sticky top-0 bg-neutral-900/90 py-1 px-1 rounded-sm backdrop-blur-sm">Admin</p>
+                            {users.filter(u => u.role === 'admin').map((u) => (
+                                <button
+                                    key={u.id}
+                                    type="button"
+                                    onClick={() => performLogin(u.email)}
+                                    className="w-full text-left p-2.5 hover:bg-neutral-800 bg-neutral-900/30 rounded-md transition-all border border-transparent hover:border-neutral-700 flex items-center justify-between group"
+                                    title={`Login as ${u.email}`}
+                                >
+                                    <span className="text-neutral-300 truncate">Admin ({u.email})</span>
+                                    <span className="opacity-0 group-hover:opacity-100 text-blue-500 font-bold px-2">Go &rarr;</span>
+                                </button>
+                            ))}
                         </div>
 
+                        {/* Trainers Section */}
                         <div className="space-y-1">
-                            <p className="text-green-400 font-bold">Clients</p>
-                            <button type="button" onClick={() => { setEmail('alice@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
-                                Alice (alice@gym.com)
-                            </button>
-                            <button type="button" onClick={() => { setEmail('bob@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
-                                Bob (bob@gym.com)
-                            </button>
-                            <button type="button" onClick={() => { setEmail('charlie@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
-                                Charlie (charlie@gym.com)
-                            </button>
-                            <button type="button" onClick={() => { setEmail('dave@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
-                                Dave (dave@gym.com)
-                            </button>
-                            <button type="button" onClick={() => { setEmail('eve@gym.com'); setPassword('GymStrong2026!'); }} className="block w-full text-left p-2 hover:bg-neutral-800 rounded transition-colors text-neutral-300">
-                                Eve (eve@gym.com)
-                            </button>
+                            <p className="text-purple-400 font-bold sticky top-0 bg-neutral-900/90 py-1 px-1 rounded-sm backdrop-blur-sm">Trainers</p>
+                            {users.filter(u => u.role === 'trainer').map((u) => (
+                                <button
+                                    key={u.id}
+                                    type="button"
+                                    onClick={() => performLogin(u.email)}
+                                    className="w-full text-left p-2.5 hover:bg-neutral-800 bg-neutral-900/30 rounded-md transition-all border border-transparent hover:border-neutral-700 flex items-center justify-between group"
+                                    title={`Login as ${u.email}`}
+                                >
+                                    <span className="text-neutral-300 truncate">{u.name || u.email.split('@')[0]}</span>
+                                    <span className="opacity-0 group-hover:opacity-100 text-purple-500 font-bold px-2">Go &rarr;</span>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Clients Section */}
+                        <div className="space-y-1">
+                            <p className="text-green-400 font-bold sticky top-0 bg-neutral-900/90 py-1 px-1 rounded-sm backdrop-blur-sm">Clients</p>
+                            {users.filter(u => u.role === 'client').map((u) => (
+                                <button
+                                    key={u.id}
+                                    type="button"
+                                    onClick={() => performLogin(u.email)}
+                                    className="w-full text-left p-2.5 hover:bg-neutral-800 bg-neutral-900/30 rounded-md transition-all border border-transparent hover:border-neutral-700 flex items-center justify-between group"
+                                    title={`Login as ${u.email}`}
+                                >
+                                    <span className="text-neutral-300 truncate">{u.name || u.email.split('@')[0]}</span>
+                                    <span className="opacity-0 group-hover:opacity-100 text-green-500 font-bold px-2">Go &rarr;</span>
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </form>

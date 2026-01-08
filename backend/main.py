@@ -12,7 +12,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -131,14 +131,48 @@ def create_availability(trainer_id: int, availability: schemas.AvailabilityBase,
     if availability.day_of_week == 6:
         raise HTTPException(status_code=400, detail="Trainers cannot schedule on Saturdays.")
 
-    # 2. Validate Time Slots (Morning: 07:00-12:00, Evening: 15:00-20:00)
-    valid_morning = (availability.start_time == "07:00" and availability.end_time == "12:00")
-    valid_evening = (availability.start_time == "15:00" and availability.end_time == "20:00")
+    # 2. Validate Time Slots (Morning: 07:00-13:00, Evening: 15:00-21:00)
+    # We extended to 13:00 and 21:00 to allow 12:00 and 20:00 start times for sessions.
+    valid_morning = (availability.start_time == "07:00" and availability.end_time == "13:00")
+    valid_evening = (availability.start_time == "15:00" and availability.end_time == "21:00")
 
     if not (valid_morning or valid_evening):
         raise HTTPException(
             status_code=400, 
-            detail="Invalid time slot. Must be Morning (07:00-12:00) or Evening (15:00-20:00)."
+            detail="Invalid time slot. Must be Morning (07:00-13:00) or Evening (15:00-21:00)."
+        )
+
+    # 3. Validate Shift Capacity (Max 3 Trainers Per Shift)
+    # Check overlapping availabilities for this day
+    overlapping_trainers_count = db.query(models.Availability.trainer_id).filter(
+        models.Availability.day_of_week == availability.day_of_week,
+        models.Availability.start_time < availability.end_time,
+        models.Availability.end_time > availability.start_time
+    ).distinct().count()
+
+    # Note: If this trainer is already scheduling for this slot (update scenario), 
+    # we might self-count. But this is create endpoint (POST), so usually new.
+    # However, a trainer might have multiple slots? No, usually 1 slot per shift.
+    # To be safe, check if WE are already counted (though unlikely for POST new availability)
+    
+    if overlapping_trainers_count >= 3:
+        raise HTTPException(
+            status_code=400, 
+            detail="Shift is full. Maximum 3 trainers allowed for this time slot."
+        )
+
+    # 4. Check for Self-Overlap (Prevent Duplicate Shifts)
+    self_overlap = db.query(models.Availability).filter(
+        models.Availability.trainer_id == trainer_id,
+        models.Availability.day_of_week == availability.day_of_week,
+        models.Availability.start_time < availability.end_time,
+        models.Availability.end_time > availability.start_time
+    ).first()
+
+    if self_overlap:
+        raise HTTPException(
+            status_code=400,
+            detail="You are already scheduled for this time slot."
         )
 
     db_availability = models.Availability(**availability.dict(), trainer_id=trainer_id)
@@ -146,6 +180,16 @@ def create_availability(trainer_id: int, availability: schemas.AvailabilityBase,
     db.commit()
     db.refresh(db_availability)
     return db_availability
+
+@app.delete("/availability/{availability_id}", status_code=204)
+def delete_availability(availability_id: int, db: Session = Depends(get_db)):
+    db_availability = db.query(models.Availability).filter(models.Availability.id == availability_id).first()
+    if db_availability is None:
+        raise HTTPException(status_code=404, detail="Availability not found")
+    
+    db.delete(db_availability)
+    db.commit()
+    return None
 
 # --- Appointment Endpoints ---
 
@@ -209,17 +253,37 @@ def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Dep
     start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_week = start_of_week + timedelta(days=7)
 
-    # Get user to check limit (assuming client_email is unique identifier for now, or use client_id if available)
-    # Ideally should use client_id, but current schema uses user_id generally. 
-    # Let's find user by email since we have it in payload
+    today = datetime.now().date()
+    # 0. Validate Date (Cannot book past) - Good practice to add here
+    if appt_date.date() < today:
+        raise HTTPException(status_code=400, detail="Cannot book appointments in the past.")
+
+    # Get user to check limit and restrictions
     client_user = db.query(models.User).filter(models.User.email == appointment.client_email).first()
     
     if not client_user:
         # Fallback or create? For now assume user exists if using the UI
-        # Should probably strict fail in real app
         user_limit = 3 # Default fallback
     else:
         user_limit = client_user.weekly_workout_limit
+
+        # --- NEW RESTRICTION: Clients Limited to Morning (7-12) and Evening (15-20) ---
+        if client_user.role == "client":
+            # Extract time part from ISO string "YYYY-MM-DDTHH:MM:SS"
+            try:
+                hour = int(appointment.start_time.split("T")[1].split(":")[0])
+                
+                is_morning = 7 <= hour <= 12
+                is_evening = 15 <= hour <= 20
+                
+                if not (is_morning or is_evening):
+                    raise HTTPException(
+                        status_code=400, 
+                        detail="Clients can only book between 07:00-12:00 or 15:00-20:00."
+                    )
+            except (IndexError, ValueError):
+                raise HTTPException(status_code=400, detail="Invalid time format.")
+
 
     # Count user's appointments in this week
     weekly_count = db.query(models.Appointment).filter(
@@ -259,11 +323,15 @@ def clear_week_appointments(week_start_date: str, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail="Invalid date format")
 
     # Delete appointments in range
+    print(f"Clearing week starting: {week_start_date}")
+    print(f"Range: {start_date} to {end_date}")
+    
     result = db.query(models.Appointment).filter(
         models.Appointment.start_time >= start_date.isoformat(),
         models.Appointment.start_time < end_date.isoformat()
     ).delete(synchronize_session=False)
     
+    print(f"Deleted {result} appointments.")
     db.commit()
     return {"message": "Week cleared", "deleted_count": result}
 
@@ -486,3 +554,4 @@ def seed_db(db: Session = Depends(get_db)):
         return {"message": "Database seeded with Admin, Client, and Trainer"}
     
     return {"message": "Database already seeded"}
+# Force Reload

@@ -51,6 +51,7 @@ class Availability(Base):
     day_of_week = Column(Integer)  # 0-6
     start_time = Column(String)  # HH:MM
     end_time = Column(String)  # HH:MM
+    is_recurring = Column(Boolean, default=True)
 
     trainer = relationship("Trainer", back_populates="availabilities")
 

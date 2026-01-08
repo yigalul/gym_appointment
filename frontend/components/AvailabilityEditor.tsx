@@ -2,39 +2,55 @@
 
 import { useState } from 'react';
 import { Availability } from '@/lib/types';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Loader2 } from 'lucide-react';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 interface AvailabilityEditorProps {
-    initialAvailability: Availability[];
-    onSave: (newAvailability: Availability[]) => void;
+    availabilities: Availability[];
+    onAdd: (slot: Partial<Availability>) => Promise<void>;
+    onDelete: (id: number) => Promise<void>;
 }
 
-export default function AvailabilityEditor({ initialAvailability, onSave }: AvailabilityEditorProps) {
-    const [availabilities, setAvailabilities] = useState<Availability[]>(initialAvailability);
+export default function AvailabilityEditor({ availabilities, onAdd, onDelete }: AvailabilityEditorProps) {
     const [newDay, setNewDay] = useState(1);
     const [shift, setShift] = useState<'morning' | 'evening'>('morning');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const addSlot = () => {
-        const newSlot: Availability = {
-            day_of_week: newDay,
-            start_time: shift === 'morning' ? '07:00' : '15:00',
-            end_time: shift === 'morning' ? '12:00' : '20:00',
-        };
-        const updated = [...availabilities, newSlot];
-        setAvailabilities(updated);
-        onSave(updated);
+    const handleAdd = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            await onAdd({
+                day_of_week: newDay,
+                start_time: shift === 'morning' ? '07:00' : '15:00',
+                end_time: shift === 'morning' ? '12:00' : '20:00',
+                is_recurring: true
+            });
+        } catch (err: any) {
+            setError(err.message || 'Failed to add slot');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const removeSlot = (index: number) => {
-        const updated = availabilities.filter((_, i) => i !== index);
-        setAvailabilities(updated);
-        onSave(updated);
+    const handleDelete = async (id: number) => {
+        if (!confirm('Remove this slot?')) return;
+        await onDelete(id);
     };
 
     return (
         <div className="space-y-6 bg-neutral-800/50 p-6 rounded-xl border border-neutral-800">
+
+            {/* Error Banner */}
+            {error && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-sm flex justify-between items-center">
+                    <span>{error}</span>
+                    <button onClick={() => setError(null)}><X className="w-4 h-4" /></button>
+                </div>
+            )}
+
             <div className="flex gap-4 items-end flex-wrap">
                 <div className="space-y-2">
                     <label className="text-sm font-medium text-neutral-400">Day</label>
@@ -61,10 +77,11 @@ export default function AvailabilityEditor({ initialAvailability, onSave }: Avai
                 </div>
 
                 <button
-                    onClick={addSlot}
-                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-md flex items-center gap-2 transition-colors"
+                    onClick={handleAdd}
+                    disabled={isLoading}
+                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-md flex items-center gap-2 transition-colors disabled:opacity-50"
                 >
-                    <Plus className="w-4 h-4" />
+                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                     Add Slot
                 </button>
             </div>
@@ -75,16 +92,16 @@ export default function AvailabilityEditor({ initialAvailability, onSave }: Avai
                     <p className="text-neutral-500 italic">No availability set. You are not bookable.</p>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {availabilities.map((slot, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-neutral-900 p-4 rounded-lg border border-neutral-800">
-                            <span className="font-medium text-white">{DAYS[slot.day_of_week]}</span>
+                    {availabilities.map((slot) => (
+                        <div key={slot.id || Math.random()} className="flex justify-between items-center bg-neutral-900 p-4 rounded-lg border border-neutral-800">
+                            <span className="font-medium text-white">{DAYS[slot.day_of_week] || 'Unknown'}</span>
                             <div className="flex items-center gap-4">
                                 <span className={`font-mono text-sm px-2 py-1 rounded ${slot.start_time === '07:00' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-indigo-500/10 text-indigo-500'
                                     }`}>
                                     {slot.start_time === '07:00' ? 'Morning Shift' : 'Evening Shift'} ({slot.start_time} - {slot.end_time})
                                 </span>
                                 <button
-                                    onClick={() => removeSlot(idx)}
+                                    onClick={() => slot.id && handleDelete(slot.id)}
                                     className="p-1 hover:bg-red-500/20 text-neutral-500 hover:text-red-400 rounded transition-colors"
                                 >
                                     <X className="w-4 h-4" />
