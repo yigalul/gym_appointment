@@ -83,17 +83,26 @@ export default function AdminDashboardPage() {
 
 
 
-    const resetForms = () => {
-        setNewName('');
+    const clearInputs = () => {
         setNewName('');
         setNewEmail('');
         setNewPassword('');
         setClientEmail('');
         setClientWeeklyLimit(3);
         setDefaultSlots([]);
-        setIsAdding(false);
-        setIsEditing(false);
         setEditingUserId(null);
+        setIsEditing(false);
+    };
+
+    const resetForms = () => {
+        clearInputs();
+        setIsAdding(false);
+    };
+
+    const openAddForm = () => {
+        clearInputs();
+        setUserType(activeTab === 'trainers' ? 'trainer' : 'client');
+        setIsAdding(true);
     };
 
     const handleAddTrainer = async (e: React.FormEvent) => {
@@ -134,6 +143,7 @@ export default function AdminDashboardPage() {
     };
 
     const startEditClient = (user: User) => {
+        clearInputs();
         setEditingUserId(user.id);
         setClientEmail(user.email);
         setClientWeeklyLimit(user.weekly_workout_limit || 3);
@@ -311,8 +321,7 @@ export default function AdminDashboardPage() {
                             if (isAdding) {
                                 resetForms();
                             } else {
-                                setUserType(activeTab === 'trainers' ? 'trainer' : 'client');
-                                setIsAdding(true);
+                                openAddForm();
                             }
                         }}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg flex items-center gap-2 transition-colors self-start md:self-auto"
@@ -381,21 +390,25 @@ export default function AdminDashboardPage() {
                                 <input
                                     type="text" placeholder="Full Name" required
                                     value={newName} onChange={e => setNewName(e.target.value)}
+                                    autoComplete="off"
                                     className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                                 />
                                 <input
                                     type="email" placeholder="Email Address" required
                                     value={newEmail} onChange={e => setNewEmail(e.target.value)}
+                                    autoComplete="off"
                                     className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                                 />
                                 <input
                                     type="password" placeholder="Password" required
                                     value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                                    autoComplete="new-password"
                                     className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                                 />
                                 <input
                                     type="text" placeholder="Specialty / Role" required
                                     value={newRole} onChange={e => setNewRole(e.target.value)}
+                                    autoComplete="off"
                                     className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                                 />
                             </div>
@@ -409,17 +422,19 @@ export default function AdminDashboardPage() {
                             </div>
                         </form>
                     ) : (
-                        <form onSubmit={isEditing ? handleUpdateClient : handleAddClient} className="space-y-4">
+                        <form onSubmit={isEditing ? handleUpdateClient : handleAddClient} className="space-y-4" autoComplete="off">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <input
                                     type="email" placeholder="Client Email" required
                                     value={clientEmail} onChange={e => setClientEmail(e.target.value)}
+                                    autoComplete="off"
                                     className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                                 />
                                 {!isEditing && (
                                     <input
                                         type="password" placeholder="Password" required
                                         value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                                        autoComplete="new-password"
                                         className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                                     />
                                 )}
@@ -428,6 +443,7 @@ export default function AdminDashboardPage() {
                                     <input
                                         type="number" min="1" max="7" required
                                         value={clientWeeklyLimit} onChange={e => setClientWeeklyLimit(Number(e.target.value))}
+                                        autoComplete="off"
                                         className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                                     />
                                 </div>
