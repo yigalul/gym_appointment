@@ -170,6 +170,7 @@ export default function LoginPage() {
                                 placeholder="Email"
                                 value={email}
                                 onChange={e => setEmail(e.target.value)}
+                                autoComplete="off"
                                 className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none transition-colors placeholder-neutral-600"
                                 required
                             />
@@ -178,6 +179,7 @@ export default function LoginPage() {
                                 placeholder="Password"
                                 value={password}
                                 onChange={e => setPassword(e.target.value)}
+                                autoComplete="new-password"
                                 className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-3 text-white focus:border-blue-500 outline-none transition-colors placeholder-neutral-600"
                                 required
                             />
