@@ -20,37 +20,69 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- Shared Seeding Logic ---
+def seed_data(db: Session):
+    if db.query(models.User).count() > 0:
+        return {"message": "Database already seeded"}
+
+    print("--- SEEDING DATABASE (Extended) ---")
+    
+    # 1. Admin
+    admin = models.User(email="admin@gym.com", hashed_password="adminpassword", role="admin")
+    db.add(admin)
+    
+    # 2. Trainers (Users)
+    t_users = []
+    for i in range(1, 5): # 4 Trainers
+        t_users.append(models.User(email=f"trainer{i}@gym.com", hashed_password="password", role="trainer"))
+    db.add_all(t_users)
+    db.commit()
+
+    # 3. Trainers (Profiles)
+    trainers_data = [
+        {"name": "Mike Tyson", "role": "Boxing Coach", "bio": "Everyone has a plan until they get punched in the face.", "seed": "Mike"},
+        {"name": "Sarah Connor", "role": "Endurance", "bio": "Come with me if you want to lift.", "seed": "Sarah"},
+        {"name": "Arnold S.", "role": "Bodybuilding", "bio": "I'll be back... for another set.", "seed": "Arnold"},
+        {"name": "Ronda R.", "role": "MMA / Grappling", "bio": "Armbar expert.", "seed": "Ronda"},
+    ]
+    
+    for idx, data in enumerate(trainers_data):
+        # Match trainer user (t_users[0] is trainer1)
+        t_profile = models.Trainer(
+            user_id=t_users[idx].id,
+            name=data["name"],
+            role=data["role"],
+            bio=data["bio"],
+            photo_url=f"https://api.dicebear.com/7.x/avataaars/svg?seed={data['seed']}"
+        )
+        db.add(t_profile)
+    
+    # 4. Clients (10 Clients)
+    clients = []
+    for i in range(1, 11):
+        clients.append(models.User(email=f"client{i}@gym.com", hashed_password="password", role="client"))
+    db.add_all(clients)
+    
+    db.commit()
+    print("--- SEEDING COMPLETE ---")
+    return {"message": "Database seeded with 4 Trainers and 10 Clients"}
+
 # --- Startup Event: Auto-Seed DB on Render ---
 @app.on_event("startup")
 def startup_event():
     db = next(get_db())
     try:
         if db.query(models.User).count() == 0:
-            print("--- AUTO-SEEDING DATABASE ---")
-            # 1. Admin
-            admin = models.User(email="admin@gym.com", hashed_password="adminpassword", role="admin")
-            db.add(admin)
-            
-            # 2. Trainers
-            t1_user = models.User(email="trainer1@gym.com", hashed_password="password", role="trainer")
-            t2_user = models.User(email="trainer2@gym.com", hashed_password="password", role="trainer")
-            db.add_all([t1_user, t2_user])
-            db.commit() # Get IDs
-            
-            t1 = models.Trainer(user_id=t1_user.id, name="Mike Tyson", role="Boxing Coach", bio="Iron Mike", photo_url="https://api.dicebear.com/7.x/avataaars/svg?seed=Mike")
-            t2 = models.Trainer(user_id=t2_user.id, name="Sarah Connor", role="Resistance", bio="Terminator Hunter", photo_url="https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah")
-            db.add_all([t1, t2])
-            db.commit()
-
-            # 3. Clients
-            clients = []
-            for i in range(1, 5):
-                clients.append(models.User(email=f"client{i}@gym.com", hashed_password="password", role="client"))
-            db.add_all(clients)
-            db.commit()
-            print("--- SEEDING COMPLETE ---")
+            seed_data(db)
     finally:
         db.close()
+
+# ... (Existing Endpoints) ...
+
+@app.get("/test-seed")
+def seed_db(db: Session = Depends(get_db)):
+    return seed_data(db)
+
 
 @app.post("/users/", response_model=schemas.User)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
@@ -538,52 +570,5 @@ def read_appointments(skip: int = 0, limit: int = 100, db: Session = Depends(get
     appointments = db.query(models.Appointment).order_by(models.Appointment.start_time.asc()).offset(skip).limit(limit).all()
     return appointments
 
-@app.get("/test-seed")
-def seed_db(db: Session = Depends(get_db)):
-    if db.query(models.User).count() == 0:
-        # 1. Admin
-        admin = models.User(email="admin@gym.com", hashed_password="adminpassword", role="admin")
-        db.add(admin)
-        
-        # 2. Client
-        client = models.User(email="client@example.com", hashed_password="clientpassword", role="client")
-        db.add(client)
-        
-        # 3. Trainer User
-        trainer_user = models.User(email="sarah@gym.com", hashed_password="trainerpassword", role="trainer")
-        db.add(trainer_user)
-        db.commit()
-        db.refresh(trainer_user)
-
-        # 4. Trainer Profile
-        trainer_profile = models.Trainer(
-            user_id=trainer_user.id,
-            name='Sarah Connor',
-            role='Strength Coach',
-            bio='Specializing in functional training.',
-            photo_url='https://images.unsplash.com/photo-1594381898411-846e7d193883?auto=format&fit=crop&q=80&w=200&h=200'
-        )
-        db.add(trainer_profile)
-        db.commit()
-        db.refresh(trainer_profile)
-
-        # 5. Availability for Sarah
-        a1 = models.Availability(trainer_id=trainer_profile.id, day_of_week=1, start_time="09:00", end_time="12:00")
-        db.add(a1)
-        
-        # 6. Appointment (Client -> Sarah)
-        app1 = models.Appointment(
-            trainer_id=trainer_profile.id,
-            client_id=client.id,
-            client_name="Test Client",
-            client_email=client.email,
-            start_time="2023-11-01T10:00:00",
-            status="confirmed"
-        )
-        db.add(app1)
-
-        db.commit()
-        return {"message": "Database seeded with Admin, Client, and Trainer"}
-    
-    return {"message": "Database already seeded"}
+# Endpoint replaced by shared logic above
 # Force Reload
