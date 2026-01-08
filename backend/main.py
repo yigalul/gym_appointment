@@ -17,9 +17,40 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_headers=["*"],
 )
 
-# --- User Endpoints ---
+# --- Startup Event: Auto-Seed DB on Render ---
+@app.on_event("startup")
+def startup_event():
+    db = next(get_db())
+    try:
+        if db.query(models.User).count() == 0:
+            print("--- AUTO-SEEDING DATABASE ---")
+            # 1. Admin
+            admin = models.User(email="admin@gym.com", hashed_password="adminpassword", role="admin")
+            db.add(admin)
+            
+            # 2. Trainers
+            t1_user = models.User(email="trainer1@gym.com", hashed_password="password", role="trainer")
+            t2_user = models.User(email="trainer2@gym.com", hashed_password="password", role="trainer")
+            db.add_all([t1_user, t2_user])
+            db.commit() # Get IDs
+            
+            t1 = models.Trainer(user_id=t1_user.id, name="Mike Tyson", role="Boxing Coach", bio="Iron Mike", photo_url="https://api.dicebear.com/7.x/avataaars/svg?seed=Mike")
+            t2 = models.Trainer(user_id=t2_user.id, name="Sarah Connor", role="Resistance", bio="Terminator Hunter", photo_url="https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah")
+            db.add_all([t1, t2])
+            db.commit()
+
+            # 3. Clients
+            clients = []
+            for i in range(1, 5):
+                clients.append(models.User(email=f"client{i}@gym.com", hashed_password="password", role="client"))
+            db.add_all(clients)
+            db.commit()
+            print("--- SEEDING COMPLETE ---")
+    finally:
+        db.close()
 
 @app.post("/users/", response_model=schemas.User)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
