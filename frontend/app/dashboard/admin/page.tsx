@@ -1,6 +1,6 @@
 'use client';
 
-import { getTrainers, getUsers, createTrainerUser, deleteTrainer, createClientUser, updateClientUser, deleteUser, getAppointments, cancelAppointment, autoScheduleWeek, clearWeekAppointments } from '@/lib/store';
+import { getTrainers, getUsers, createTrainerUser, deleteTrainer, createClientUser, updateClientUser, deleteUser, getAppointments, cancelAppointment, autoScheduleWeek, clearWeekAppointments, sendAdminWhatsApp } from '@/lib/store';
 import { User, Trainer, Appointment } from '@/lib/types';
 import { Users, UserPlus, Trash2, Plus, X, Pencil, Calendar, XCircle, Search, ChevronLeft, ChevronRight, Wand2, AlertCircle, CheckCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -246,6 +246,34 @@ export default function AdminDashboardPage() {
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
     const [confirmClear, setConfirmClear] = useState(false);
+
+    // Message Modal State
+    const [isMsgModalOpen, setIsMsgModalOpen] = useState(false);
+    const [msgTargetUser, setMsgTargetUser] = useState<User | null>(null);
+    const [msgContent, setMsgContent] = useState('');
+    const [isSendingMsg, setIsSendingMsg] = useState(false);
+
+    const openMessageModal = (user: User) => {
+        setMsgTargetUser(user);
+        setMsgContent('');
+        setIsMsgModalOpen(true);
+    };
+
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!msgTargetUser) return;
+
+        setIsSendingMsg(true);
+        const success = await sendAdminWhatsApp(msgTargetUser.id, msgContent);
+        setIsSendingMsg(false);
+
+        if (success) {
+            setSuccessMsg(`Message sent to ${msgTargetUser.email}`);
+            setIsMsgModalOpen(false);
+        } else {
+            setErrorMsg("Failed to send message. Check console/network.");
+        }
+    };
 
     // Auto-reset confirmation after 3 seconds
     useEffect(() => {
@@ -527,6 +555,44 @@ export default function AdminDashboardPage() {
                 </div>
             )}
 
+            {/* Message Modal */}
+            {isMsgModalOpen && msgTargetUser && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-md p-6 shadow-2xl scale-100 animate-in zoom-in-95">
+                        <h3 className="text-xl font-bold text-white mb-2">Send WhatsApp Message</h3>
+                        <p className="text-neutral-400 text-sm mb-6">To: <span className="text-white font-medium">{msgTargetUser.email}</span></p>
+
+                        <form onSubmit={handleSendMessage} className="space-y-4">
+                            <textarea
+                                autoFocus
+                                value={msgContent}
+                                onChange={e => setMsgContent(e.target.value)}
+                                placeholder="Type your message here..."
+                                className="w-full h-32 bg-neutral-800 border border-neutral-700 rounded-lg p-3 text-white outline-none focus:border-green-500 resize-none font-sans"
+                                required
+                            />
+
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsMsgModalOpen(false)}
+                                    className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg transition-colors font-medium"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSendingMsg}
+                                    className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
+                                >
+                                    {isSendingMsg ? 'Sending...' : 'Send Message'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* Tabs & Search Bar */}
             <div className="space-y-4">
                 <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
@@ -610,6 +676,7 @@ export default function AdminDashboardPage() {
                 </div>
             )}
 
+
             {/* TAB CONTENT: CLIENTS */}
             {activeTab === 'clients' && (
                 <div className="bg-neutral-800/30 rounded-xl border border-neutral-800 overflow-hidden">
@@ -641,6 +708,13 @@ export default function AdminDashboardPage() {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <button
+                                            onClick={() => openMessageModal(user)}
+                                            className="p-2 text-green-500 hover:bg-green-500/10 rounded-lg transition-colors"
+                                            title="Send WhatsApp Message"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-message-circle"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg>
+                                        </button>
+                                        <button
                                             onClick={() => startEditClient(user)}
                                             className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
                                             title="Edit Client Attributes"
@@ -661,6 +735,7 @@ export default function AdminDashboardPage() {
                     </div>
                 </div>
             )}
+
 
             {/* TAB CONTENT: APPOINTMENTS */}
             {activeTab === 'appointments' && (

@@ -347,4 +347,20 @@ export async function markNotificationRead(id: number): Promise<boolean> {
     }
 }
 
+
 export const MOCK_TRAINERS: Trainer[] = [];
+
+export async function sendAdminWhatsApp(userId: number, message: string): Promise<boolean> {
+    try {
+        const res = await fetch(`${API_Base}/admin/send-whatsapp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId, message })
+        });
+        if (!res.ok) throw new Error('Failed to send message');
+        return true;
+    } catch (error) {
+        console.error(error);
+        return false;
+    }
+}

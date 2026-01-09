@@ -418,6 +418,32 @@ def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Dep
     db.add(db_appointment)
     db.commit()
     db.refresh(db_appointment)
+
+    # --- WhatsApp Notification ---
+    try:
+        # Lazy load trainer to get name
+        trainer_name = db_appointment.trainer.name if db_appointment.trainer else "Gym Trainer"
+        
+        # Parse connection string to get nice date/time
+        # start_time is ISO string
+        import whatsapp_service
+        
+        # Parsing ISO format safely
+        dt_str = db_appointment.start_time
+        # Example: 2023-10-27T10:00:00
+        date_part = dt_str.split("T")[0]
+        time_part = dt_str.split("T")[1][:5] # HH:MM
+        
+        whatsapp_service.notify_appointment_created(
+            client_name=db_appointment.client_name or "Client",
+            date=date_part,
+            time=time_part,
+            trainer_name=trainer_name
+        )
+    except Exception as e:
+        print(f"Notification Error: {e}")
+        # Don't fail the request just because notification failed
+
     return db_appointment
 
 @app.put("/appointments/{appointment_id}/cancel", response_model=schemas.Appointment)
@@ -626,3 +652,39 @@ def read_appointments(skip: int = 0, limit: int = 100, db: Session = Depends(get
 
 # Endpoint replaced by shared logic above
 # Force Reload
+import os
+@app.post("/admin/send-whatsapp", response_model=dict)
+def send_admin_whatsapp(payload: dict, db: Session = Depends(get_db)):
+    # Payload: { "user_id": int, "message": str }
+    user_id = payload.get("user_id")
+    message = payload.get("message")
+    
+    if not user_id or not message:
+        raise HTTPException(status_code=400, detail="Missing user_id or message")
+        
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    # Get name if possible (users table doesn't have name, but maybe trainer profile or just generic)
+    # Clients just have email.
+    client_name = user.email.split("@")[0]
+    
+    import whatsapp_service
+    
+    # Prefix message with Admin tag? Or just raw?
+    # Let's make it look professional
+    full_message = f"📢 *Admin Message from Gym*\n\n{message}"
+    
+    # We don't have phone numbers in User table yet, so we use the mock target or defaults
+    # In real app, user would have phone_number column
+    
+    success = whatsapp_service.send_whatsapp_message(
+        to_number=os.getenv("TEST_WHATSAPP_TARGET", "+15550000000"),
+        body_text=full_message
+    )
+    
+    if success:
+        return {"message": "WhatsApp sent successfully"}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to send WhatsApp")
