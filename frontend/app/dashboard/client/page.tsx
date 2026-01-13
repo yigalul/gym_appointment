@@ -1,6 +1,6 @@
 'use client';
 
-import { getTrainers, getAppointments, getCurrentUser, getNotifications, markNotificationRead } from '@/lib/store';
+import { getTrainers, getAppointments, getCurrentUser, getNotifications, markNotificationRead, getSystemWeek } from '@/lib/store';
 import { Trainer, Appointment, Notification } from '@/lib/types';
 import { Calendar, User, ChevronLeft, ChevronRight, Settings, Plus, Trash2, X, Bell } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -19,17 +19,20 @@ export default function ClientDashboardPage() {
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
     // Calendar State
-    const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
+    const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 0 }));
 
     // Calendar Helpers
     const weekDays = eachDayOfInterval({
         start: currentWeekStart,
-        end: endOfWeek(currentWeekStart, { weekStartsOn: 1 })
+        end: endOfWeek(currentWeekStart, { weekStartsOn: 0 })
     });
     const timeSlots = Array.from({ length: 15 }, (_, i) => i + 7); // 7am to 9pm
 
     useEffect(() => {
         getTrainers().then(setTrainers);
+        getSystemWeek().then(dateStr => {
+            setCurrentWeekStart(startOfWeek(parseISO(dateStr), { weekStartsOn: 0 }));
+        });
         loadBookings();
         loadNotifications();
     }, []);
@@ -162,15 +165,10 @@ export default function ClientDashboardPage() {
                     <h2 className="text-2xl font-bold text-white">My Bookings</h2>
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-lg p-1">
-                            <button onClick={() => setCurrentWeekStart(subDays(currentWeekStart, 7))} className="p-2 hover:bg-neutral-800 rounded-md text-neutral-400 hover:text-white transition-colors">
-                                <ChevronLeft className="w-4 h-4" />
-                            </button>
-                            <span className="text-sm font-medium text-white px-2">
+                            {/* Navigation Disabled - Controlled by Admin */}
+                            <span className="text-sm font-medium text-white px-2 py-1">
                                 {format(weekDays[0], 'MMM d')} - {format(weekDays[6], 'MMM d')}
                             </span>
-                            <button onClick={() => setCurrentWeekStart(addDays(currentWeekStart, 7))} className="p-2 hover:bg-neutral-800 rounded-md text-neutral-400 hover:text-white transition-colors">
-                                <ChevronRight className="w-4 h-4" />
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -323,13 +321,13 @@ function DefaultScheduleModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                                 onChange={(e) => updateSlot(idx, 'day_of_week', parseInt(e.target.value))}
                                 className="bg-neutral-800 border border-neutral-700 text-white rounded p-2 text-sm flex-1"
                             >
-                                <option value={0}>Monday</option>
-                                <option value={1}>Tuesday</option>
-                                <option value={2}>Wednesday</option>
-                                <option value={3}>Thursday</option>
-                                <option value={4}>Friday</option>
-                                <option value={5}>Saturday</option>
-                                <option value={6}>Sunday</option>
+                                <option value={0}>Sunday</option>
+                                <option value={1}>Monday</option>
+                                <option value={2}>Tuesday</option>
+                                <option value={3}>Wednesday</option>
+                                <option value={4}>Thursday</option>
+                                <option value={5}>Friday</option>
+                                <option value={6}>Saturday</option>
                             </select>
                             <select
                                 value={slot.start_time}

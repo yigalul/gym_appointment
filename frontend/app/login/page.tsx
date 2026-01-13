@@ -12,6 +12,7 @@ export default function LoginPage() {
     const [error, setError] = useState('');
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
 
     useEffect(() => {
         getUsers().then(data => {
@@ -198,17 +199,47 @@ export default function LoginPage() {
                     <p className="text-[10px] text-neutral-600 uppercase tracking-wider font-mono">
                         API: {process.env.NEXT_PUBLIC_API_URL || 'LOCALHOST (Checking...)'}
                     </p>
-                    <button
-                        onClick={async () => {
-                            if (!confirm("Reset all data to default demo set? This cannot be undone.")) return;
-                            const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                            await fetch(`${API}/test-seed?force=true`);
-                            window.location.reload();
-                        }}
-                        className="text-[10px] text-red-900 hover:text-red-500 underline transition-colors"
-                    >
-                        [Reset Demo Data]
-                    </button>
+                    {showResetConfirm ? (
+                        <div className="flex flex-col items-center gap-2 animate-in fade-in zoom-in duration-200">
+                            <span className="text-red-500 text-[10px] font-bold">Are you sure? This cannot be undone.</span>
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={async () => {
+                                        const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                                        try {
+                                            const res = await fetch(`${API}/test-seed?force=true`);
+                                            if (!res.ok) {
+                                                const err = await res.json();
+                                                alert("Failed to reset data: " + (err.error || err.detail || res.statusText));
+                                                setShowResetConfirm(false);
+                                                return;
+                                            }
+                                            window.location.reload();
+                                        } catch (e) {
+                                            alert("Failed to reset data: " + e);
+                                            setShowResetConfirm(false);
+                                        }
+                                    }}
+                                    className="text-[10px] text-red-500 hover:text-red-400 font-bold underline"
+                                >
+                                    [Yes, Reset]
+                                </button>
+                                <button
+                                    onClick={() => setShowResetConfirm(false)}
+                                    className="text-[10px] text-neutral-500 hover:text-neutral-300 underline"
+                                >
+                                    [No, Cancel]
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => setShowResetConfirm(true)}
+                            className="text-[10px] text-red-900 hover:text-red-500 underline transition-colors"
+                        >
+                            [Reset Demo Data]
+                        </button>
+                    )}
                 </div>
             </div >
         </div >

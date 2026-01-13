@@ -18,7 +18,7 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
     const [appointments, setAppointments] = useState<any[]>([]);
 
     // Calendar State
-    const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
+    const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 0 }));
 
     useEffect(() => {
         if (!isOpen) {
@@ -27,7 +27,7 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
             setError('');
         } else {
             // Reset to current week when opening
-            setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+            setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 0 }));
             // Fetch appointments to calculate availability
             getAppointments().then(data => setAppointments(data));
         }
@@ -38,7 +38,7 @@ export default function BookingModal({ isOpen, onClose, trainer }: BookingModalP
     // Calendar Helpers
     const weekDays = eachDayOfInterval({
         start: currentWeekStart,
-        end: endOfWeek(currentWeekStart, { weekStartsOn: 1 })
+        end: endOfWeek(currentWeekStart, { weekStartsOn: 0 })
     });
     const timeSlots = Array.from({ length: 15 }, (_, i) => i + 7); // 7am to 9pm
 

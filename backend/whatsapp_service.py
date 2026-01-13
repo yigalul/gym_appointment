@@ -56,14 +56,23 @@ def send_whatsapp_message(to_number: str, body_text: str):
             return False
     else:
         # MOCK MODE: Just print it if no credentials
-        print("\n" + "="*40)
-        print(" [MOCK WHATSAPP] Integration Active (No Credentials)")
-        print(f" Any actual sending is skipped.")
-        print(f" FROM: {from_number}")
-        print(f" TO:   {to_number}")
-        print(f" BODY: {body_text}")
-        print(" To enable real sending, set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN.")
-        print("="*40 + "\n")
+        log_msg = (
+            f"\n{'='*40}\n"
+            f" [MOCK WHATSAPP] Integration Active (No Credentials)\n"
+            f" FROM: {from_number}\n"
+            f" TO:   {to_number}\n"
+            f" BODY: {body_text}\n"
+            f"{'='*40}\n"
+        )
+        print(log_msg)
+        
+        # Also append to a local log file for easy viewing
+        try:
+            with open("whatsapp_mock.log", "a") as f:
+                f.write(log_msg + "\n")
+        except Exception as e:
+            print(f"Failed to write to mock log: {e}")
+            
         return True
 
 def notify_appointment_created(client_name: str, date: str, time: str, trainer_name: str, client_phone: str = None):

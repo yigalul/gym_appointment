@@ -23,7 +23,7 @@ def seed_data():
 
     # 2. Ensure 3 Trainers
     print("Seeding Trainers...")
-    trainer_names = ["Arnold", "Ronnie", "Jay"]
+    trainer_names = ["Arnold", "Ronnie"]
     trainers = []
     
     # Check/Create trainers
@@ -91,10 +91,10 @@ def seed_data():
     
     print(f"Trainers ready: {[t.name for t in trainers]}")
 
-    # 3. Create 10 Customers
+    # 3. Create 4 Customers
     print("Seeding Customers...")
     clients = []
-    for i in range(1, 11):
+    for i in range(1, 5):
         email = f"client{i}@test.com"
         user = db.query(models.User).filter(models.User.email == email).first()
         if not user:
@@ -102,11 +102,19 @@ def seed_data():
                 email=email,
                 hashed_password=get_password_hash("GymStrong2026!"),
                 role="client",
+                phone_number=f"+1555010{i:02d}", # Mock phone number
                 weekly_workout_limit=3
             )
             db.add(user)
             db.commit()
             db.refresh(user)
+        else:
+             # Update existing user to have phone number if missing
+             if not user.phone_number:
+                user.phone_number = f"+1555010{i:02d}"
+                db.add(user)
+                db.commit()
+                db.refresh(user)
         clients.append(user)
     
     print(f"Created {len(clients)} clients.")

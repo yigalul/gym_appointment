@@ -7,8 +7,11 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
+    first_name = Column(String, nullable=True)
+    last_name = Column(String, nullable=True)
     hashed_password = Column(String)
     role = Column(String)  # 'admin', 'trainer', 'client'
+    phone_number = Column(String, nullable=True)
     weekly_workout_limit = Column(Integer, default=3)
 
     trainer_profile = relationship("Trainer", back_populates="user", uselist=False)
@@ -81,3 +84,10 @@ class Notification(Base):
     created_at = Column(String) # ISO format
 
     user = relationship("User", back_populates="notifications")
+
+
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+
+    key = Column(String, primary_key=True, index=True)
+    value = Column(String)

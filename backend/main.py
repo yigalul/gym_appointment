@@ -10,10 +10,18 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    print("Loaded .env file")
+except ImportError:
+    print("python-dotenv not installed, skipping .env load")
+
 app.add_middleware(
     CORSMiddleware,
     # allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_origins=["*"], # Allow Vercel/Anywhere for now 
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    # allow_origins=["*"], # Allow Vercel/Anywhere for now 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -32,17 +40,16 @@ def seed_data(db: Session):
     
     # 2. Trainers (Users)
     t_users = []
-    for i in range(1, 5): # 4 Trainers
+    t_users = []
+    for i in range(1, 3): # 2 Trainers
         t_users.append(models.User(email=f"trainer{i}@gym.com", hashed_password="password", role="trainer"))
     db.add_all(t_users)
     db.commit()
 
     # 3. Trainers (Profiles)
     trainers_data = [
-        {"name": "Mike Tyson", "role": "Boxing Coach", "bio": "Everyone has a plan until they get punched in the face.", "seed": "Mike"},
-        {"name": "Sarah Connor", "role": "Endurance", "bio": "Come with me if you want to lift.", "seed": "Sarah"},
         {"name": "Arnold S.", "role": "Bodybuilding", "bio": "I'll be back... for another set.", "seed": "Arnold"},
-        {"name": "Ronda R.", "role": "MMA / Grappling", "bio": "Armbar expert.", "seed": "Ronda"},
+        {"name": "Ronnie C.", "role": "Powerlifting", "bio": "Light weight baby!", "seed": "Ronnie"},
     ]
     
     for idx, data in enumerate(trainers_data):
@@ -56,15 +63,22 @@ def seed_data(db: Session):
         )
         db.add(t_profile)
     
-    # 4. Clients (10 Clients)
+    # 4. Clients (4 Clients)
     clients = []
-    for i in range(1, 11):
-        clients.append(models.User(email=f"client{i}@gym.com", hashed_password="password", role="client"))
+    for i in range(1, 5):
+        clients.append(models.User(
+            email=f"client{i}@gym.com", 
+            hashed_password="password", 
+            role="client", 
+            phone_number=f"+1555010{i:02d}",
+            first_name=f"Client{i}",
+            last_name="Test"
+        ))
     db.add_all(clients)
     
     db.commit()
     print("--- SEEDING COMPLETE ---")
-    return {"message": "Database seeded with 4 Trainers and 10 Clients"}
+    return {"message": "Database seeded with 2 Trainers and 4 Clients"}
 
 # --- Startup Event: Auto-Seed DB on Render ---
 @app.on_event("startup")
@@ -95,8 +109,7 @@ def seed_db(force: bool = False, db: Session = Depends(get_db)):
         except Exception as e:
             print(f"Error wiping DB: {e}")
             db.rollback()
-            return {"error": str(e)}
-            
+            raise HTTPException(status_code=500, detail=f"Database reset failed: {str(e)}")
     return seed_data(db)
 
 
@@ -113,7 +126,14 @@ def login(creds: schemas.UserLogin, db: Session = Depends(get_db)):
 
 @app.post("/users/", response_model=schemas.User)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    db_user = models.User(email=user.email, hashed_password=user.password, role=user.role)
+    db_user = models.User(
+        email=user.email,
+        hashed_password=user.password,
+        role=user.role,
+        phone_number=user.phone_number,
+        first_name=user.first_name,
+        last_name=user.last_name
+    )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -151,6 +171,15 @@ def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Dep
     
     if user_update.email:
         db_user.email = user_update.email
+    
+    if user_update.first_name is not None:
+        db_user.first_name = user_update.first_name
+
+    if user_update.last_name is not None:
+        db_user.last_name = user_update.last_name
+
+    if user_update.phone_number is not None:
+        db_user.phone_number = user_update.phone_number
     
     if user_update.weekly_workout_limit is not None:
         db_user.weekly_workout_limit = user_update.weekly_workout_limit
@@ -243,11 +272,51 @@ def read_trainer(trainer_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Trainer not found")
     return trainer
 
+@app.post("/trainers/{trainer_id}/availability/all-week")
+def add_full_week_availability(trainer_id: int, start_time: str = "09:00", end_time: str = "17:00", db: Session = Depends(get_db)):
+    # 0 = Sunday, 1 = Monday ... 6 = Saturday
+    # Or strict ISO: 0=Monday?
+    # Our system seems to use 0 as standard start index, let's assume 0-6 cover the week.
+    # Frontend logic usually maps 0-6.
+    
+    new_slots = []
+    for day in range(6): # 0-5 (Sunday to Friday), Exclude 6 (Saturday)
+        # SKIP FRIDAY EVENING
+        if day == 5 and start_time == "15:00":
+             continue
+
+        # Check if exists
+        existing = db.query(models.Availability).filter(
+            models.Availability.trainer_id == trainer_id,
+            models.Availability.day_of_week == day,
+            models.Availability.start_time == start_time
+        ).first()
+
+        if existing:
+            continue
+            
+        slot = models.Availability(
+            trainer_id=trainer_id,
+            day_of_week=day,
+            start_time=start_time,
+            end_time=end_time,
+            is_recurring=True
+        )
+        db.add(slot)
+        new_slots.append(slot)
+    
+    db.commit()
+    return {"message": "Added full week availability", "slots_count": len(new_slots)}
+
 @app.post("/trainers/{trainer_id}/availability/", response_model=schemas.Availability)
 def create_availability(trainer_id: int, availability: schemas.AvailabilityBase, db: Session = Depends(get_db)):
     # 1. Validate Day (Sunday=0 to Friday=5, Saturday=6 is not allowed)
     if availability.day_of_week == 6:
         raise HTTPException(status_code=400, detail="Trainers cannot schedule on Saturdays.")
+    
+    # NEW: Validate Friday Evening (Friday=5, Start=15:00)
+    if availability.day_of_week == 5 and availability.start_time == "15:00":
+        raise HTTPException(status_code=400, detail="Trainers cannot schedule Friday Evenings.")
 
     # 2. Validate Time Slots (Morning: 07:00-13:00, Evening: 15:00-21:00)
     # We extended to 13:00 and 21:00 to allow 12:00 and 20:00 start times for sessions.
@@ -259,6 +328,16 @@ def create_availability(trainer_id: int, availability: schemas.AvailabilityBase,
             status_code=400, 
             detail="Invalid time slot. Must be Morning (07:00-13:00) or Evening (15:00-21:00)."
         )
+
+    # Check for duplicate slot for THIS trainer
+    existing_own = db.query(models.Availability).filter(
+        models.Availability.trainer_id == trainer_id,
+        models.Availability.day_of_week == availability.day_of_week,
+        models.Availability.start_time == availability.start_time
+    ).first()
+    
+    if existing_own:
+        raise HTTPException(status_code=400, detail="You already have this shift scheduled.")
 
     # 3. Validate Shift Capacity (Max 3 Trainers Per Shift)
     # Check overlapping availabilities for this day
@@ -645,6 +724,29 @@ def mark_notification_read(notification_id: int, db: Session = Depends(get_db)):
     db.refresh(notif)
     return notif
 
+# --- System Settings Endpoints ---
+
+@app.get("/settings/current-week", response_model=schemas.SystemWeekResponse)
+def get_system_week(db: Session = Depends(get_db)):
+    setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "current_week").first()
+    if not setting:
+        from datetime import datetime
+        today = datetime.now().strftime("%Y-%m-%d")
+        return {"date": today}
+    return {"date": setting.value}
+
+@app.post("/settings/current-week")
+def update_system_week(payload: schemas.SystemWeekUpdate, db: Session = Depends(get_db)):
+    setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "current_week").first()
+    if not setting:
+        setting = models.SystemSetting(key="current_week", value=payload.date)
+        db.add(setting)
+    else:
+        setting.value = payload.date
+    
+    db.commit()
+    return {"message": "System week updated", "date": payload.date}
+
 @app.get("/appointments/", response_model=List[schemas.Appointment])
 def read_appointments(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     appointments = db.query(models.Appointment).order_by(models.Appointment.start_time.asc()).offset(skip).limit(limit).all()
@@ -653,32 +755,26 @@ def read_appointments(skip: int = 0, limit: int = 100, db: Session = Depends(get
 # Endpoint replaced by shared logic above
 # Force Reload
 import os
-@app.post("/admin/send-whatsapp", response_model=dict)
-def send_admin_whatsapp(payload: dict, db: Session = Depends(get_db)):
-    # Payload: { "user_id": int, "message": str }
-    user_id = payload.get("user_id")
-    message = payload.get("message")
+from datetime import datetime, timedelta
+from pydantic import BaseModel
+import whatsapp_service # Import the module, not just the function, or update call site
+
+@app.post("/admin/send-whatsapp")
+def send_admin_message(request: schemas.AdminMessageRequest, db: Session = Depends(get_db)):
+    # 1. Create notification
+    full_message = f"Admin Message: {request.message}"
+    notif = models.Notification(
+        user_id=request.user_id,
+        message=full_message,
+        created_at=datetime.now().isoformat()
+    )
+    db.add(notif)
     
-    if not user_id or not message:
-        raise HTTPException(status_code=400, detail="Missing user_id or message")
-        
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    # 2. Get User & Phone
+    user = db.query(models.User).filter(models.User.id == request.user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
-    # Get name if possible (users table doesn't have name, but maybe trainer profile or just generic)
-    # Clients just have email.
-    client_name = user.email.split("@")[0]
-    
-    import whatsapp_service
-    
-    # Prefix message with Admin tag? Or just raw?
-    # Let's make it look professional
-    full_message = f"📢 *Admin Message from Gym*\n\n{message}"
-    
-    # We don't have phone numbers in User table yet, so we use the mock target or defaults
-    # In real app, user would have phone_number column
-    
     success = whatsapp_service.send_whatsapp_message(
         to_number=os.getenv("TEST_WHATSAPP_TARGET", "+15550000000"),
         body_text=full_message

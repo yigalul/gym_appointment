@@ -1,53 +1,62 @@
 'use client';
 
-import { getTrainers, getAppointments, getCurrentUser } from '@/lib/store';
+import { getCurrentUser, getAppointments, getTrainers, getSystemWeek } from '@/lib/store';
 import { startOfWeek, endOfWeek, eachDayOfInterval, format, addDays, subDays, isSameDay, parseISO } from 'date-fns';
 import { Calendar, Users, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Trainer, Appointment } from '@/lib/types';
+import { Trainer, Appointment, User } from '@/lib/types'; // Added User to types
 
 export default function DashboardPage() {
     const router = useRouter();
     const [trainer, setTrainer] = useState<Trainer | null>(null);
     const [appointments, setAppointments] = useState<Appointment[]>([]);
-    const [currentWeekStart, setCurrentWeekStart] = useState<Date | null>(null);
+    const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 0 })); // Changed initial state and type
+    const [user, setUser] = useState<User | null>(null); // Added user state
 
     useEffect(() => {
-        const user = getCurrentUser();
-        if (!user) {
-            router.push('/login');
-            return;
-        }
-
-        getTrainers().then(trainers => {
-            const myTrainerProfile = trainers.find(t => t.user_id === user.id);
-            if (myTrainerProfile) {
-                setTrainer(myTrainerProfile);
-            } else {
-                // Handle case where user is logged in but has no trainer profile
-                // For now, maybe redirect or show error?
-                // Just picking first one is what we want to AVOID.
-                console.error("No trainer profile found for this user");
-            }
+        // Load system week
+        getSystemWeek().then(dateStr => {
+            setCurrentWeekStart(startOfWeek(parseISO(dateStr), { weekStartsOn: 0 }));
         });
 
-        getAppointments().then(setAppointments);
-        setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
-    }, []);
+        const currentUser = getCurrentUser(); // Renamed to avoid conflict with state
+        if (currentUser) {
+            setUser(currentUser);
+            if (currentUser.role === 'trainer') {
+                // Load info...
+                getTrainers().then(trainers => {
+                    const myTrainerProfile = trainers.find(t => t.user_id === currentUser.id);
+                    if (myTrainerProfile) {
+                        setTrainer(myTrainerProfile);
+                        getAppointments().then(apps => {
+                            setAppointments(apps.filter(a => a.trainer_id === myTrainerProfile.id));
+                        });
+                    } else {
+                        console.error("No trainer profile found for this user");
+                    }
+                });
+            } else if (currentUser.role === 'admin') {
+                router.push('/dashboard/admin');
+            } else {
+                router.push('/dashboard/client');
+            }
+        } else {
+            router.push('/login');
+        }
+    }, [router]);
 
-    if (!trainer || !currentWeekStart) {
+    if (!trainer || !user) { // Adjusted condition based on new state
         return <div className="p-8 text-neutral-400">Loading dashboard...</div>;
     }
 
     const weekDays = eachDayOfInterval({
         start: currentWeekStart,
-        end: endOfWeek(currentWeekStart, { weekStartsOn: 1 })
+        end: endOfWeek(currentWeekStart, { weekStartsOn: 0 }) // Changed weekStartsOn to 0
     });
     const timeSlots = Array.from({ length: 16 }, (_, i) => i + 7); // 7am to 10pm
 
-    const prevWeek = () => setCurrentWeekStart(subDays(currentWeekStart, 7));
-    const nextWeek = () => setCurrentWeekStart(addDays(currentWeekStart, 7));
+    // Removed prevWeek and nextWeek functions as per instruction
 
     const upcomingAppointments = appointments.filter(app => app.trainer_id === trainer.id);
 
@@ -98,17 +107,15 @@ export default function DashboardPage() {
             {/* Weekly Calendar */}
             <div className="space-y-4">
                 {/* Week Header */}
-                <div className="flex items-center justify-between bg-neutral-900 p-4 rounded-xl border border-neutral-800">
+                <div className="flex items-center justify-between mb-6"> {/* Adjusted class */}
+                    <h2 className="text-xl font-bold text-white">Your Schedule</h2> {/* Added h2 */}
                     <div className="flex items-center gap-4">
-                        <button onClick={prevWeek} className="p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors">
-                            <ChevronLeft className="w-5 h-5" />
-                        </button>
-                        <span className="text-white font-medium">
-                            {format(weekDays[0], 'MMM d')} - {format(weekDays[6], 'MMM d, yyyy')}
-                        </span>
-                        <button onClick={nextWeek} className="p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors">
-                            <ChevronRight className="w-5 h-5" />
-                        </button>
+                        <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-lg p-1">
+                            {/* Navigation Locked by Admin */}
+                            <span className="text-sm font-medium text-white px-2 py-1">
+                                {format(weekDays[0], 'MMM d')} - {format(weekDays[6], 'MMM d')}
+                            </span>
+                        </div>
                     </div>
                 </div>
 

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Availability } from '@/lib/types';
 import { Plus, X, Loader2 } from 'lucide-react';
 
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 interface AvailabilityEditorProps {
     availabilities: Availability[];
@@ -17,6 +17,7 @@ export default function AvailabilityEditor({ availabilities, onAdd, onDelete }: 
     const [shift, setShift] = useState<'morning' | 'evening'>('morning');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [deletingId, setDeletingId] = useState<number | null>(null);
 
     const handleAdd = async () => {
         setIsLoading(true);
@@ -36,8 +37,8 @@ export default function AvailabilityEditor({ availabilities, onAdd, onDelete }: 
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm('Remove this slot?')) return;
         await onDelete(id);
+        setDeletingId(null);
     };
 
     return (
@@ -60,7 +61,7 @@ export default function AvailabilityEditor({ availabilities, onAdd, onDelete }: 
                         className="block w-40 bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none"
                     >
                         {DAYS.map((day, i) => (
-                            <option key={i} value={i}>{day}</option>
+                            i !== 6 && <option key={i} value={i}>{day}</option>
                         ))}
                     </select>
                 </div>
@@ -72,7 +73,7 @@ export default function AvailabilityEditor({ availabilities, onAdd, onDelete }: 
                         className="block w-48 bg-neutral-900 border border-neutral-700 rounded-md p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none"
                     >
                         <option value="morning">Morning (07:00 - 12:00)</option>
-                        <option value="evening">Evening (15:00 - 20:00)</option>
+                        {newDay !== 5 && <option value="evening">Evening (15:00 - 20:00)</option>}
                     </select>
                 </div>
 
@@ -100,12 +101,30 @@ export default function AvailabilityEditor({ availabilities, onAdd, onDelete }: 
                                     }`}>
                                     {slot.start_time === '07:00' ? 'Morning Shift' : 'Evening Shift'} ({slot.start_time} - {slot.end_time})
                                 </span>
-                                <button
-                                    onClick={() => slot.id && handleDelete(slot.id)}
-                                    className="p-1 hover:bg-red-500/20 text-neutral-500 hover:text-red-400 rounded transition-colors"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
+                                {deletingId === slot.id ? (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-neutral-400">Sure?</span>
+                                        <button
+                                            onClick={() => slot.id && handleDelete(slot.id)}
+                                            className="px-2 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded transition-colors"
+                                        >
+                                            Yes
+                                        </button>
+                                        <button
+                                            onClick={() => setDeletingId(null)}
+                                            className="px-2 py-1 bg-neutral-700 hover:bg-neutral-600 text-white text-xs rounded transition-colors"
+                                        >
+                                            No
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => setDeletingId(slot.id || null)}
+                                        className="p-1 hover:bg-red-500/20 text-neutral-500 hover:text-red-400 rounded transition-colors"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))}

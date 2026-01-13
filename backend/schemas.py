@@ -18,6 +18,9 @@ class ClientDefaultSlot(ClientDefaultSlotBase):
 
 class UserBase(BaseModel):
     email: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone_number: Optional[str] = None
     role: str = "client"
     weekly_workout_limit: int = 3
 
@@ -31,11 +34,17 @@ class UserLogin(BaseModel):
 
 class UserUpdate(BaseModel):
     email: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone_number: Optional[str] = None
     weekly_workout_limit: Optional[int] = None
     default_slots: Optional[List[ClientDefaultSlotCreate]] = None
 
 class User(UserBase):
     id: int
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone_number: Optional[str] = None
     weekly_workout_limit: int
     default_slots: List[ClientDefaultSlot] = []
     
@@ -107,3 +116,13 @@ class Notification(NotificationBase):
     
     class Config:
         from_attributes = True
+
+class AdminMessageRequest(BaseModel):
+    user_id: int
+    message: str
+
+class SystemWeekResponse(BaseModel):
+    date: str
+
+class SystemWeekUpdate(BaseModel):
+    date: str

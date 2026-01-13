@@ -49,7 +49,7 @@ export async function loginUserViaApi(email: string, password: string): Promise<
 
 export async function getUsers(): Promise<User[]> {
     try {
-        const res = await fetch(`${API_Base}/users/`);
+        const res = await fetch(`${API_Base}/users/?t=${Date.now()}`);
         if (!res.ok) throw new Error('Failed to fetch users');
         return res.json();
     } catch (error) {
@@ -94,7 +94,46 @@ export async function deleteTrainer(trainerId: number): Promise<boolean> {
 }
 
 // Updated to accept password
-export async function createTrainerUser(name: string, role: string, email: string, bio: string, password: string): Promise<boolean> {
+export async function addFullWeekAvailability(trainerId: number, startTime: string = '09:00', endTime: string = '17:00'): Promise<boolean> {
+    try {
+        const res = await fetch(`${API_Base}/trainers/${trainerId}/availability/all-week?start_time=${startTime}&end_time=${endTime}`, {
+            method: 'POST',
+        });
+        if (!res.ok) throw new Error('Failed to add full week');
+        return true;
+    } catch (error) {
+        console.error("WhatsApp Error:", error);
+        return false;
+    }
+}
+
+// --- System Settings ---
+export async function getSystemWeek(): Promise<string> {
+    try {
+        const res = await fetch(`${API_Base}/settings/current-week`);
+        const data = await res.json();
+        return data.date;
+    } catch (error) {
+        console.error("Get System Week Error:", error);
+        return new Date().toISOString().split('T')[0];
+    }
+}
+
+export async function updateSystemWeek(date: string): Promise<boolean> {
+    try {
+        const res = await fetch(`${API_Base}/settings/current-week`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date })
+        });
+        return res.ok;
+    } catch (error) {
+        console.error("Update System Week Error:", error);
+        return false;
+    }
+}
+
+export async function createTrainerUser(email: string, password: string, name: string, role: string, bio: string): Promise<boolean> {
     try {
         // 1. Create User
         const userRes = await fetch(`${API_Base}/users/`, {
@@ -126,7 +165,34 @@ export async function createTrainerUser(name: string, role: string, email: strin
     }
 }
 
-export async function createClientUser(email: string, password: string, defaultSlots: { day_of_week: number; start_time: string }[], weeklyWorkoutLimit: number = 3): Promise<boolean> {
+export async function addUser(user: Partial<User>, password?: string): Promise<User> {
+    const payload = {
+        email: user.email,
+        password: password || 'GymStrong2026!', // Default password if not validating logic here
+        role: user.role,
+        phone_number: user.phone_number,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        default_slots: user.default_slots || []
+    };
+    try {
+        const res = await fetch(`${API_Base}/users/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.detail || 'Failed to add user');
+        }
+        return res.json();
+    } catch (error) {
+        console.error("Add User Error:", error);
+        throw error;
+    }
+}
+
+export async function createClientUser(email: string, password: string, defaultSlots: { day_of_week: number; start_time: string }[], weeklyWorkoutLimit: number = 3, phoneNumber?: string, firstName?: string, lastName?: string): Promise<boolean> {
     try {
         const userRes = await fetch(`${API_Base}/users/`, {
             method: 'POST',
@@ -135,6 +201,9 @@ export async function createClientUser(email: string, password: string, defaultS
                 email,
                 password,
                 role: 'client',
+                phone_number: phoneNumber,
+                first_name: firstName,
+                last_name: lastName,
                 default_slots: defaultSlots,
                 weekly_workout_limit: weeklyWorkoutLimit
             })
@@ -173,15 +242,19 @@ export async function updateClientDefaults(userId: number, defaultSlots: { day_o
     }
 }
 
-export async function updateClientUser(id: number, email: string, defaultSlots: { day_of_week: number; start_time: string }[], weeklyWorkoutLimit: number): Promise<boolean> {
+// Update Full User (Admin)
+export async function updateClientUser(userId: number, email: string, defaultSlots: { day_of_week: number; start_time: string }[], weeklyWorkoutLimit: number = 3, phoneNumber?: string, firstName?: string, lastName?: string): Promise<boolean> {
     try {
-        const userRes = await fetch(`${API_Base}/users/${id}`, {
+        const userRes = await fetch(`${API_Base}/users/${userId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 email,
                 default_slots: defaultSlots,
-                weekly_workout_limit: weeklyWorkoutLimit
+                weekly_workout_limit: weeklyWorkoutLimit,
+                phone_number: phoneNumber,
+                first_name: firstName,
+                last_name: lastName
             })
         });
         if (!userRes.ok) throw new Error('Failed to update user');

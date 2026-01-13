@@ -1,8 +1,8 @@
 'use client';
 
-import { getTrainers, getUsers, createTrainerUser, deleteTrainer, createClientUser, updateClientUser, deleteUser, getAppointments, cancelAppointment, autoScheduleWeek, clearWeekAppointments, sendAdminWhatsApp } from '@/lib/store';
+import { getTrainers, getUsers, createTrainerUser, deleteTrainer, createClientUser, updateClientUser, deleteUser, getAppointments, cancelAppointment, autoScheduleWeek, clearWeekAppointments, sendAdminWhatsApp, getSystemWeek, updateSystemWeek } from '@/lib/store';
 import { User, Trainer, Appointment } from '@/lib/types';
-import { Users, UserPlus, Trash2, Plus, X, Pencil, Calendar, XCircle, Search, ChevronLeft, ChevronRight, Wand2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Users, UserPlus, Trash2, Plus, X, Pencil, Calendar, XCircle, Search, ChevronLeft, ChevronRight, Wand2, AlertCircle, CheckCircle, RotateCcw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { startOfWeek, endOfWeek, eachDayOfInterval, format, addDays, subDays, isSameDay, parseISO, startOfDay } from 'date-fns';
 
@@ -20,8 +20,17 @@ export default function AdminDashboardPage() {
     const [viewMode, setViewMode] = useState<'list' | 'week'>('week');
 
     useEffect(() => {
-        setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+        // Load initial week from system
+        getSystemWeek().then(dateStr => {
+            setCurrentWeekStart(startOfWeek(parseISO(dateStr), { weekStartsOn: 0 }));
+        });
     }, []);
+
+    // Sync week changes to backend
+    const handleWeekChange = (newDate: Date) => {
+        setCurrentWeekStart(newDate);
+        updateSystemWeek(format(newDate, 'yyyy-MM-dd'));
+    };
 
     const TRAINER_COLORS = [
         'bg-blue-600/20 border-blue-500/50 hover:bg-blue-600/30',
@@ -49,7 +58,10 @@ export default function AdminDashboardPage() {
     const [newRole, setNewRole] = useState('Strength Coach');
 
     // Client Form
+    const [clientFirstName, setClientFirstName] = useState('');
+    const [clientLastName, setClientLastName] = useState('');
     const [clientEmail, setClientEmail] = useState('');
+    const [clientPhoneNumber, setClientPhoneNumber] = useState('');
     const [clientWeeklyLimit, setClientWeeklyLimit] = useState(3);
     const [defaultSlots, setDefaultSlots] = useState<{ day_of_week: number; start_time: string }[]>([]);
 
@@ -87,7 +99,10 @@ export default function AdminDashboardPage() {
         setNewName('');
         setNewEmail('');
         setNewPassword('');
+        setClientFirstName('');
+        setClientLastName('');
         setClientEmail('');
+        setClientPhoneNumber('');
         setClientWeeklyLimit(3);
         setDefaultSlots([]);
         setEditingUserId(null);
@@ -119,7 +134,7 @@ export default function AdminDashboardPage() {
 
     const handleAddClient = async (e: React.FormEvent) => {
         e.preventDefault();
-        const success = await createClientUser(clientEmail, newPassword || 'GymStrong2026!', defaultSlots, clientWeeklyLimit);
+        const success = await createClientUser(clientEmail, newPassword || 'GymStrong2026!', defaultSlots, clientWeeklyLimit, clientPhoneNumber, clientFirstName, clientLastName);
         if (success) {
             alert('Client added successfully!');
             resetForms();
@@ -132,7 +147,7 @@ export default function AdminDashboardPage() {
     const handleUpdateClient = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingUserId) return;
-        const success = await updateClientUser(editingUserId, clientEmail, defaultSlots, clientWeeklyLimit);
+        const success = await updateClientUser(editingUserId, clientEmail, defaultSlots, clientWeeklyLimit, clientPhoneNumber, clientFirstName, clientLastName);
         if (success) {
             alert('Client updated successfully!');
             resetForms();
@@ -146,6 +161,9 @@ export default function AdminDashboardPage() {
         clearInputs();
         setEditingUserId(user.id);
         setClientEmail(user.email);
+        setClientPhoneNumber(user.phone_number || '');
+        setClientFirstName(user.first_name || '');
+        setClientLastName(user.last_name || '');
         setClientWeeklyLimit(user.weekly_workout_limit || 3);
         setDefaultSlots(user.default_slots || []);
         setUserType('client');
@@ -345,11 +363,15 @@ export default function AdminDashboardPage() {
     // Calendar Helpers
     const weekDays = eachDayOfInterval({
         start: currentWeekStart,
-        end: endOfWeek(currentWeekStart, { weekStartsOn: 1 })
+        end: endOfWeek(currentWeekStart, { weekStartsOn: 0 })
     });
     const timeSlots = Array.from({ length: 15 }, (_, i) => i + 7); // 7am to 9pm
-    const prevWeek = () => setCurrentWeekStart(subDays(currentWeekStart, 7));
-    const nextWeek = () => setCurrentWeekStart(addDays(currentWeekStart, 7));
+
+    const prevWeek = () => handleWeekChange(subDays(currentWeekStart, 7));
+    const nextWeek = () => handleWeekChange(addDays(currentWeekStart, 7));
+
+
+    const goToCurrentWeek = () => handleWeekChange(startOfWeek(new Date(), { weekStartsOn: 0 }));
 
     return (
         <div className="space-y-8">
@@ -443,6 +465,7 @@ export default function AdminDashboardPage() {
                                     autoComplete="off"
                                     className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                                 />
+
                                 <input
                                     type="password" placeholder="Password" required
                                     value={newPassword} onChange={e => setNewPassword(e.target.value)}
@@ -469,9 +492,27 @@ export default function AdminDashboardPage() {
                         <form onSubmit={isEditing ? handleUpdateClient : handleAddClient} className="space-y-4" autoComplete="off">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <input
+                                    type="text" placeholder="First Name"
+                                    value={clientFirstName} onChange={e => setClientFirstName(e.target.value)}
+                                    autoComplete="given-name"
+                                    className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                />
+                                <input
+                                    type="text" placeholder="Last Name"
+                                    value={clientLastName} onChange={e => setClientLastName(e.target.value)}
+                                    autoComplete="family-name"
+                                    className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                />
+                                <input
                                     type="email" placeholder="Client Email" required
                                     value={clientEmail} onChange={e => setClientEmail(e.target.value)}
                                     autoComplete="off"
+                                    className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                />
+                                <input
+                                    type="text" placeholder="Phone Number (e.g. +1234567890)"
+                                    value={clientPhoneNumber} onChange={e => setClientPhoneNumber(e.target.value)}
+                                    autoComplete="tel"
                                     className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                                 />
                                 {!isEditing && (
@@ -560,7 +601,11 @@ export default function AdminDashboardPage() {
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-md p-6 shadow-2xl scale-100 animate-in zoom-in-95">
                         <h3 className="text-xl font-bold text-white mb-2">Send WhatsApp Message</h3>
-                        <p className="text-neutral-400 text-sm mb-6">To: <span className="text-white font-medium">{msgTargetUser.email}</span></p>
+                        <p className="text-neutral-400 text-sm mb-6">
+                            To: <span className="text-white font-medium">{msgTargetUser.first_name} {msgTargetUser.last_name}</span>
+                            <br />
+                            <span className="text-xs text-neutral-500">{msgTargetUser.phone_number || 'No Phone'} • {msgTargetUser.email}</span>
+                        </p>
 
                         <form onSubmit={handleSendMessage} className="space-y-4">
                             <textarea
@@ -690,7 +735,9 @@ export default function AdminDashboardPage() {
                             filteredClients.map((user) => (
                                 <div key={user.id} className="p-4 flex items-center justify-between border-b border-neutral-800 last:border-0 hover:bg-neutral-800/30 transition-colors">
                                     <div>
-                                        <div className="font-medium text-white">{user.email}</div>
+                                        <div className="font-medium text-white">{user.first_name} {user.last_name}</div>
+                                        <div className="text-sm text-neutral-500">{user.email}</div>
+                                        {user.phone_number && <div className="text-xs text-neutral-400">{user.phone_number}</div>}
                                         <div className="text-sm text-neutral-500 mt-1 flex gap-2 items-center">
                                             <span className="bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded text-xs">
                                                 Limit: {user.weekly_workout_limit || 3}/wk
@@ -751,6 +798,14 @@ export default function AdminDashboardPage() {
                             </span>
                             <button onClick={nextWeek} className="p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors">
                                 <ChevronRight className="w-5 h-5" />
+                            </button>
+
+                            <button
+                                onClick={goToCurrentWeek}
+                                className="ml-2 p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors"
+                                title="Go to Current Week"
+                            >
+                                <RotateCcw className="w-4 h-4" />
                             </button>
                         </div>
 
