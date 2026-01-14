@@ -1,4 +1,9 @@
 import requests
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 API_URL = "http://127.0.0.1:8000"
 
@@ -10,7 +15,7 @@ def verify_booking():
     time_slot = "2027-01-01T10:00:00"
     trainer_id = 1 # Sarah
 
-    print(f"Attempting booking for {client_email} at {time_slot}...")
+    logger.info(f"Attempting booking for {client_email} at {time_slot}...")
     
     response = requests.post(f"{API_URL}/appointments/", json={
         "trainer_id": trainer_id,
@@ -21,11 +26,11 @@ def verify_booking():
     })
 
     if response.status_code == 200:
-        print("SUCCESS: Booking confirmed.")
-        print(response.json())
+        logger.info("SUCCESS: Booking confirmed.")
+        logger.info(response.json())
     else:
-        print(f"FAILURE: {response.status_code}")
-        print(response.text)
+        logger.error(f"FAILURE: {response.status_code}")
+        logger.error(response.text)
 
 if __name__ == "__main__":
     verify_booking()

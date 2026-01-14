@@ -47,11 +47,9 @@ def send_whatsapp_message(to_number: str, body_text: str):
                 body=body_text,
                 to=to_number
             )
-            print(f"WhatsApp sent! SID: {message.sid}")
             logger.info(f"WhatsApp message sent to {to_number}: {message.sid}")
             return True
         except Exception as e:
-            print(f"Failed to send WhatsApp: {e}")
             logger.error(f"Failed to send WhatsApp: {e}")
             return False
     else:
@@ -64,14 +62,17 @@ def send_whatsapp_message(to_number: str, body_text: str):
             f" BODY: {body_text}\n"
             f"{'='*40}\n"
         )
-        print(log_msg)
+        if not logger.handlers:
+             print(log_msg)
+        else:
+             logger.info(log_msg)
         
         # Also append to a local log file for easy viewing
         try:
             with open("whatsapp_mock.log", "a") as f:
                 f.write(log_msg + "\n")
         except Exception as e:
-            print(f"Failed to write to mock log: {e}")
+            logger.error(f"Failed to write to mock log: {e}")
             
         return True
 

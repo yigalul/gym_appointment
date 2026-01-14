@@ -8,14 +8,20 @@ from database import engine, get_db
 
 models.Base.metadata.create_all(bind=engine)
 
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
 
 try:
     from dotenv import load_dotenv
     load_dotenv()
-    print("Loaded .env file")
+    logger.info("Loaded .env file")
 except ImportError:
-    print("python-dotenv not installed, skipping .env load")
+    logger.warning("python-dotenv not installed, skipping .env load")
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,7 +38,7 @@ def seed_data(db: Session):
     if db.query(models.User).count() > 0:
         return {"message": "Database already seeded"}
 
-    print("--- SEEDING DATABASE (Extended) ---")
+    logger.info("--- SEEDING DATABASE (Extended) ---")
     
     # 1. Admin
     admin = models.User(email="admin@gym.com", hashed_password="adminpassword", role="admin")
@@ -77,7 +83,7 @@ def seed_data(db: Session):
     db.add_all(clients)
     
     db.commit()
-    print("--- SEEDING COMPLETE ---")
+    logger.info("--- SEEDING COMPLETE ---")
     return {"message": "Database seeded with 2 Trainers and 4 Clients"}
 
 # --- Startup Event: Auto-Seed DB on Render ---
@@ -95,7 +101,7 @@ def startup_event():
 @app.get("/test-seed")
 def seed_db(force: bool = False, db: Session = Depends(get_db)):
     if force:
-        print("--- FORCING DATABASE RESET ---")
+        logger.info("--- FORCING DATABASE RESET ---")
         try:
             db.query(models.Appointment).delete()
             db.query(models.Availability).delete()
@@ -105,9 +111,9 @@ def seed_db(force: bool = False, db: Session = Depends(get_db)):
             db.query(models.Notification).delete()
             db.query(models.User).delete()
             db.commit()
-            print("--- DATABASE WIPED ---")
+            logger.info("--- DATABASE WIPED ---")
         except Exception as e:
-            print(f"Error wiping DB: {e}")
+            logger.error(f"Error wiping DB: {e}")
             db.rollback()
             raise HTTPException(status_code=500, detail=f"Database reset failed: {str(e)}")
     return seed_data(db)
@@ -520,7 +526,7 @@ def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Dep
             trainer_name=trainer_name
         )
     except Exception as e:
-        print(f"Notification Error: {e}")
+        logger.error(f"Notification Error: {e}")
         # Don't fail the request just because notification failed
 
     return db_appointment
@@ -546,15 +552,15 @@ def clear_week_appointments(week_start_date: str, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail="Invalid date format")
 
     # Delete appointments in range
-    print(f"Clearing week starting: {week_start_date}")
-    print(f"Range: {start_date} to {end_date}")
+    logger.info(f"Clearing week starting: {week_start_date}")
+    logger.info(f"Range: {start_date} to {end_date}")
     
     result = db.query(models.Appointment).filter(
         models.Appointment.start_time >= start_date.isoformat(),
         models.Appointment.start_time < end_date.isoformat()
     ).delete(synchronize_session=False)
     
-    print(f"Deleted {result} appointments.")
+    logger.info(f"Deleted {result} appointments.")
     db.commit()
     return {"message": "Week cleared", "deleted_count": result}
 

@@ -4,6 +4,11 @@ import models
 from passlib.context import CryptContext
 import random
 from datetime import datetime, timedelta
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Init DB
 models.Base.metadata.create_all(bind=engine)
@@ -14,10 +19,10 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 def seed_data():
-    print("--- Starting Data Reset and Seeding ---")
+    logger.info("--- Starting Data Reset and Seeding ---")
 
     # 1. Clear All Data (Order matters for foreign keys)
-    print("Clearing database...")
+    logger.info("Clearing database...")
     db.query(models.Appointment).delete()
     db.query(models.ClientDefaultSlot).delete()
     db.query(models.Availability).delete()
@@ -26,7 +31,7 @@ def seed_data():
     db.commit()
 
     # 2. Create Admin
-    print("Creating Admin...")
+    logger.info("Creating Admin...")
     admin = models.User(
         email="admin@gym.com", 
         hashed_password=get_password_hash("GymStrong2026!"), 
@@ -36,7 +41,7 @@ def seed_data():
     db.commit()
 
     # 3. Create 2 Trainers
-    print("Seeding 2 Trainers...")
+    logger.info("Seeding 2 Trainers...")
     trainers_data = [
         {"name": "Sarah Connor", "role": "Strength Coach", "email": "sarah@gym.com"},
         {"name": "Mike Mentzer", "role": "High Intensity Expert", "email": "mike@gym.com"}
@@ -76,7 +81,7 @@ def seed_data():
         db.commit()
 
     # 4. Create 5 Clients
-    print("Seeding 5 Clients...")
+    logger.info("Seeding 5 Clients...")
     client_emails = [
         "alice@gym.com", 
         "bob@gym.com", 
@@ -99,7 +104,7 @@ def seed_data():
         clients.append(user)
 
     # 4b. Create Default Slots for Clients (Conflict Scenario)
-    print("Seeding Default Slots (All Sunday 10:00)...")
+    logger.info("Seeding Default Slots (All Sunday 10:00)...")
     
     # All clients want Sunday 10:00
     for client in clients:
@@ -108,7 +113,7 @@ def seed_data():
     db.commit()
         
     # 5. Create Random Appointments (optional but good for testing)
-    print("Creating Random Appointments (1 per client)...")
+    logger.info("Creating Random Appointments (1 per client)...")
     today = datetime.now()
     days_ahead = 7 - today.weekday() # Next Monday
     if days_ahead <= 0: days_ahead += 7
@@ -129,7 +134,7 @@ def seed_data():
         db.add(appt)
     db.commit()
     
-    print("--- Database Reset & Seeded Successfully ---")
+    logger.info("--- Database Reset & Seeded Successfully ---")
 
 if __name__ == "__main__":
     seed_data()

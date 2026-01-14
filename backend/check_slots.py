@@ -1,4 +1,9 @@
 import sqlite3
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 conn = sqlite3.connect('gym.db')
 cursor = conn.cursor()
@@ -8,14 +13,14 @@ def check_sarah():
     sarah = cursor.fetchone()
     if sarah:
         tid, name = sarah
-        print(f"Trainer: {name} (ID: {tid})")
+        logger.info(f"Trainer: {name} (ID: {tid})")
         cursor.execute("SELECT * FROM availabilities WHERE trainer_id = ?", (tid,))
         rows = cursor.fetchall()
-        print(f"Found {len(rows)} slots:")
+        logger.info(f"Found {len(rows)} slots:")
         for r in rows:
-            print(r)
+            logger.info(r)
     else:
-        print("Sarah not found")
+        logger.warning("Sarah not found")
 
     conn.close()
 

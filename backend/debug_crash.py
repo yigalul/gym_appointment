@@ -1,19 +1,23 @@
 from database import SessionLocal
 from models import Trainer
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 def test_crash():
     db = SessionLocal()
     try:
-        print("Querying trainers...")
+        logger.info("Querying trainers...")
         trainers = db.query(Trainer).all()
-        print(f"Found {len(trainers)} trainers.")
+        logger.info(f"Found {len(trainers)} trainers.")
         for t in trainers:
-            print(f"- {t.name} ({len(t.availabilities)} availabilities)")
+            logger.info(f"- {t.name} ({len(t.availabilities)} availabilities)")
             for a in t.availabilities:
-                print(f"  - {a.day_of_week} {a.start_time}-{a.end_time} recur={a.is_recurring}")
+                logger.info(f"  - {a.day_of_week} {a.start_time}-{a.end_time} recur={a.is_recurring}")
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error: {e}", exc_info=True)
     finally:
         db.close()
 

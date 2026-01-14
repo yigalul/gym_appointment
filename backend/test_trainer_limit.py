@@ -1,6 +1,11 @@
 import requests
 from database import SessionLocal
 from models import User, Trainer, Availability, Appointment
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # API Base URL
 API_URL = "http://127.0.0.1:8000"
@@ -8,14 +13,14 @@ API_URL = "http://127.0.0.1:8000"
 def seed_trainers_limit_test():
     db = SessionLocal()
     try:
-        print("Cleaning up database...")
+        logger.info("Cleaning up database...")
         db.query(Appointment).delete()
         db.query(Availability).delete()
         db.query(Trainer).delete()
         db.query(User).delete()
         db.commit()
 
-        print("Creating 4 Trainers...")
+        logger.info("Creating 4 Trainers...")
         trainers = []
         for i in range(4):
             # Create User
@@ -43,7 +48,7 @@ def seed_trainers_limit_test():
         db.close()
 
 def test_enforcement(trainers):
-    print("\nTesting 3-Trainer Limit...")
+    logger.info("\nTesting 3-Trainer Limit...")
     
     # Try to assign ALL 4 trainers to Monday Morning (09:00 - 12:00)
     # Note: Our validation checks overlapping. Slots are 07:00-12:00 (Morning).
@@ -57,39 +62,39 @@ def test_enforcement(trainers):
     }
 
     # 1. Trainer 1 -> Expect Success
-    print("Assigning Trainer 1... ", end="")
+    logger.info("Assigning Trainer 1... ")
     res = requests.post(f"{API_URL}/trainers/{trainers[0]['id']}/availability/", json=availability_payload)
     if res.status_code == 200:
-        print("SUCCESS")
+        logger.info("SUCCESS")
     else:
-        print(f"FAILED: {res.text}")
+        logger.error(f"FAILED: {res.text}")
 
     # 2. Trainer 2 -> Expect Success
-    print("Assigning Trainer 2... ", end="")
+    logger.info("Assigning Trainer 2... ")
     res = requests.post(f"{API_URL}/trainers/{trainers[1]['id']}/availability/", json=availability_payload)
     if res.status_code == 200:
-        print("SUCCESS")
+        logger.info("SUCCESS")
     else:
-        print(f"FAILED: {res.text}")
+        logger.error(f"FAILED: {res.text}")
 
     # 3. Trainer 3 -> Expect Success
-    print("Assigning Trainer 3... ", end="")
+    logger.info("Assigning Trainer 3... ")
     res = requests.post(f"{API_URL}/trainers/{trainers[2]['id']}/availability/", json=availability_payload)
     if res.status_code == 200:
-        print("SUCCESS")
+        logger.info("SUCCESS")
     else:
-        print(f"FAILED: {res.text}")
+        logger.error(f"FAILED: {res.text}")
 
     # 4. Trainer 4 -> Expect FAILURE (400)
-    print("Assigning Trainer 4... ", end="")
+    logger.info("Assigning Trainer 4... ")
     res = requests.post(f"{API_URL}/trainers/{trainers[3]['id']}/availability/", json=availability_payload)
     if res.status_code == 400 and "Shift is full" in res.text:
-        print("SUCCESS (Blocked as expected)")
+        logger.info("SUCCESS (Blocked as expected)")
     else:
-        print(f"FAILED (Should have been blocked): {res.status_code} {res.text}")
+        logger.error(f"FAILED (Should have been blocked): {res.status_code} {res.text}")
 
     # 5. Trainer 4 -> Different Shift (Evening) -> Expect Success
-    print("Assigning Trainer 4 to Evening... ", end="")
+    logger.info("Assigning Trainer 4 to Evening... ")
     evening_payload = {
         "day_of_week": 0,
         "start_time": "15:00",
@@ -98,9 +103,9 @@ def test_enforcement(trainers):
     }
     res = requests.post(f"{API_URL}/trainers/{trainers[3]['id']}/availability/", json=evening_payload)
     if res.status_code == 200:
-        print("SUCCESS")
+        logger.info("SUCCESS")
     else:
-        print(f"FAILED: {res.text}")
+        logger.error(f"FAILED: {res.text}")
 
 if __name__ == "__main__":
     trainers = seed_trainers_limit_test()

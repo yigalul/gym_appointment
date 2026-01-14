@@ -1,5 +1,10 @@
 import requests
 import datetime
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 BASE_URL = "http://localhost:8000"
 
@@ -13,7 +18,7 @@ def test_ranges():
     client = next((u for u in users if u['role'] == 'client'), None)
     if not client: return
     
-    print(f"Client: {client['email']}")
+    logger.info(f"Client: {client['email']}")
     
     today = datetime.date.today()
     next_monday = today + datetime.timedelta(days=(7 - today.weekday()))
@@ -51,9 +56,9 @@ def test_ranges():
              success = True # Logically pass for restriction test
         
         if success == should_pass:
-            print("✅ OK")
+            logger.info("✅ OK")
         else:
-            print(f"❌ FAIL: Status {r.status_code} {r.text}")
+            logger.error(f"❌ FAIL: Status {r.status_code} {r.text}")
 
 if __name__ == "__main__":
     test_ranges()

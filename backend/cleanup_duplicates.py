@@ -1,6 +1,11 @@
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from models import Base, Availability
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Connect to the correct database
 DATABASE_URL = "sqlite:///./backend/gym.db"
@@ -9,7 +14,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 db = SessionLocal()
 
 def clean_duplicates():
-    print("Scanning for duplicate availabilities...")
+    logger.info("Scanning for duplicate availabilities...")
     
     # query all availabilities
     all_avails = db.query(Availability).all()
@@ -26,20 +31,21 @@ def clean_duplicates():
         else:
             seen[key] = a
 
-    print(f"Found {len(duplicates)} duplicate entries.")
+    logger.info(f"Found {len(duplicates)} duplicate entries.")
     
     if duplicates:
         for dup in duplicates:
-            print(f"Deleting duplicate: ID {dup.id} - Trainer {dup.trainer_id} Day {dup.day_of_week} {dup.start_time}-{dup.end_time}")
+            logger.info(f"Deleting duplicate: ID {dup.id} - Trainer {dup.trainer_id} Day {dup.day_of_week} {dup.start_time}-{dup.end_time}")
             db.delete(dup)
         
         db.commit()
-        print("✅ Duplicates deleted.")
+        db.commit()
+        logger.info("✅ Duplicates deleted.")
     else:
-        print("No duplicates found.")
+        logger.info("No duplicates found.")
 
 if __name__ == "__main__":
     try:
         clean_duplicates()
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")

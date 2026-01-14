@@ -1,4 +1,9 @@
 import sqlite3
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Connect to the SQLite database
 conn = sqlite3.connect('gym.db')
@@ -10,18 +15,18 @@ def seed_availability():
         cursor.execute("SELECT id, name FROM trainers")
         trainers = cursor.fetchall()
         
-        print(f"Found {len(trainers)} trainers.")
+        logger.info(f"Found {len(trainers)} trainers.")
 
         for trainer in trainers:
             trainer_id, name = trainer
-            print(f"Checking availability for {name} (ID: {trainer_id})...")
+            logger.info(f"Checking availability for {name} (ID: {trainer_id})...")
             
             # Check if they have any availability
             cursor.execute("SELECT count(*) FROM availabilities WHERE trainer_id = ?", (trainer_id,))
             count = cursor.fetchone()[0]
             
             if count == 0:
-                print(f"No availability found for {name}. Adding default slots (Mon-Fri, 09:00-17:00)...")
+                logger.info(f"No availability found for {name}. Adding default slots (Mon-Fri, 09:00-17:00)...")
                 
                 # Add Mon-Fri (1-5), 9am to 5pm
                 availabilities = []
@@ -36,12 +41,12 @@ def seed_availability():
                 
                 cursor.executemany("INSERT INTO availabilities (trainer_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)", availabilities)
                 conn.commit()
-                print(f"Added {len(availabilities)} slots for {name}.")
+                logger.info(f"Added {len(availabilities)} slots for {name}.")
             else:
-                print(f"{name} already has {count} slots.")
+                logger.info(f"{name} already has {count} slots.")
                 
     except sqlite3.OperationalError as e:
-        print(f"Database Error: {e}")
+        logger.error(f"Database Error: {e}")
     finally:
         conn.close()
 

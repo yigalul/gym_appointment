@@ -1,6 +1,11 @@
 from database import SessionLocal, engine, Base
 from models import User, Trainer, Availability, Appointment
 from passlib.context import CryptContext
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -10,7 +15,7 @@ def get_password_hash(password):
 def seed_stress_test():
     db = SessionLocal()
     try:
-        print("Cleaning up database...")
+        logger.info("Cleaning up database...")
         # Delete existing data
         db.query(Appointment).delete()
         db.query(Availability).delete()
@@ -18,13 +23,13 @@ def seed_stress_test():
         db.query(User).delete()
         db.commit()
 
-        print("Creating Admin...")
+        logger.info("Creating Admin...")
         admin = User(email="admin@gym.com", hashed_password=get_password_hash("GymStrong2026!"), role="admin")
         db.add(admin)
         db.commit() # Commit to get ID
         db.refresh(admin)
 
-        print("Creating 6 Trainers...")
+        logger.info("Creating 6 Trainers...")
         trainers = []
         # Create 6 trainers, but only 3 will have availability
         for i in range(6):
@@ -39,7 +44,7 @@ def seed_stress_test():
             db.refresh(trainer)
             trainers.append(trainer)
 
-        print("Setting Availability for ONLY 3 Trainers (Mon 9-12)...")
+        logger.info("Setting Availability for ONLY 3 Trainers (Mon 9-12)...")
         # Trainers 1, 2, 3 have slots. Trainers 4, 5, 6 have NO slots.
         # Shift: Mon 09:00 - 12:00 (3 hours). 
         # Capacity per slot = 2 clients.
@@ -60,7 +65,7 @@ def seed_stress_test():
                 db.add(avail)
         db.commit()
 
-        print("Creating 15 Clients...")
+        logger.info("Creating 15 Clients...")
         # All 15 clients want Mon 9AM
         # Capacity is 6. So 9 should fail.
         for i in range(15):
@@ -74,12 +79,12 @@ def seed_stress_test():
             db.add(c_user)
         
         db.commit()
-        print("Stress Test Scenario Created Successfully!")
-        print("Summary:")
-        print("- 3 Active Trainers (Mon 9am)")
-        print("- 3 Inactive Trainers")
-        print("- 15 Clients requesting Mon 9am")
-        print("- Expected Result: ~6 Bookings, ~9 Failures")
+        logger.info("Stress Test Scenario Created Successfully!")
+        logger.info("Summary:")
+        logger.info("- 3 Active Trainers (Mon 9am)")
+        logger.info("- 3 Inactive Trainers")
+        logger.info("- 15 Clients requesting Mon 9am")
+        logger.info("- Expected Result: ~6 Bookings, ~9 Failures")
 
     finally:
         db.close()

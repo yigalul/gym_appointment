@@ -1,6 +1,11 @@
 
 import requests
 import datetime
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 BASE_URL = "http://localhost:8000"
 
@@ -22,7 +27,7 @@ def run():
         "photo_url": "http://x"
     })
     if t_res.status_code != 200:
-        print("Failed to create trainer", t_res.text)
+        logger.error(f"Failed to create trainer {t_res.text}")
         return
     tid = t_res.json()["id"]
 
@@ -55,10 +60,10 @@ def run():
         friday += datetime.timedelta(days=7) # Next week if passed
     
     start_time = f"{friday}T12:00:00"
-    print(f"Testing Booking for {start_time}")
+    logger.info(f"Testing Booking for {start_time}")
 
     # 4. Book Client A
-    print("Booking Client A...")
+    logger.info("Booking Client A...")
     r1 = requests.post(f"{BASE_URL}/appointments/", json={
         "trainer_id": tid,
         "client_id": cid1,
@@ -67,10 +72,10 @@ def run():
         "start_time": start_time,
         "status": "confirmed"
     })
-    print("Client A:", r1.status_code, r1.text)
+    logger.info(f"Client A: {r1.status_code} {r1.text}")
 
     # 5. Book Client B
-    print("Booking Client B...")
+    logger.info("Booking Client B...")
     r2 = requests.post(f"{BASE_URL}/appointments/", json={
         "trainer_id": tid,
         "client_id": cid2,
@@ -79,10 +84,10 @@ def run():
         "start_time": start_time,
         "status": "confirmed"
     })
-    print("Client B:", r2.status_code, r2.text)
+    logger.info(f"Client B: {r2.status_code} {r2.text}")
 
     # 6. Book Client C (Should Fail)
-    print("Booking Client C...")
+    logger.info("Booking Client C...")
     r3 = requests.post(f"{BASE_URL}/appointments/", json={
         "trainer_id": tid,
         "client_id": cid3,
@@ -91,7 +96,7 @@ def run():
         "start_time": start_time,
         "status": "confirmed"
     })
-    print("Client C:", r3.status_code) # Expect 400
+    logger.info(f"Client C: {r3.status_code}") # Expect 400
 
 if __name__ == "__main__":
     run()

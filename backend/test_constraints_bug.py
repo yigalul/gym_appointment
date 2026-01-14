@@ -1,4 +1,9 @@
 import requests
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 API_URL = "http://127.0.0.1:8000"
 
@@ -9,7 +14,7 @@ TIME_SLOT = "2026-06-03T09:00:00" # Wed 9am
 
 def book(client_email, trainer_id, time_slot, expect_success=True):
     # Need to verify user's email exists first or just assume from seeds
-    print(f"\nAttempting to book for {client_email} with Trainer {trainer_id} at {time_slot}...")
+    logger.info(f"\nAttempting to book for {client_email} with Trainer {trainer_id} at {time_slot}...")
     response = requests.post(f"{API_URL}/appointments/", json={
         "trainer_id": trainer_id,
         "client_name": "Test Client",
@@ -20,17 +25,17 @@ def book(client_email, trainer_id, time_slot, expect_success=True):
     
     if expect_success:
         if response.status_code == 200:
-            print("SUCCESS: Booking created.")
+            logger.info("SUCCESS: Booking created.")
             return True
         else:
-            print(f"FAILURE (Unexpected): {response.text}")
+            logger.error(f"FAILURE (Unexpected): {response.text}")
             return False
     else:
         if response.status_code != 200:
-            print(f"SUCCESS (Expected Failure): {response.json()['detail']}")
+            logger.info(f"SUCCESS (Expected Failure): {response.json()['detail']}")
             return True
         else:
-            print("FAILURE (Unexpected Success): Booking should have been rejected.")
+            logger.error("FAILURE (Unexpected Success): Booking should have been rejected.")
             return False
 
 def run_tests():
@@ -39,13 +44,13 @@ def run_tests():
     # Using a far future Monday to be safe.
     TEST_TIME = "2026-10-05T09:00:00" 
     
-    print("--- Test 1: Duplicate Booking Check ---")
+    logger.info("--- Test 1: Duplicate Booking Check ---")
     # 1. Book once
     book(CLIENT_EMAIL, TRAINER_ID, TEST_TIME, expect_success=True)
     # 2. Book again (Same user, same slot) - Should Fail
     book(CLIENT_EMAIL, TRAINER_ID, TEST_TIME, expect_success=False)
     
-    print("\n--- Test 2: Trainer Capacity (Max 2) ---")
+    logger.info("\n--- Test 2: Trainer Capacity (Max 2) ---")
     TRAINER_CAP_TIME = "2026-10-05T10:00:00"
     # 1. Book Client 1
     book("alice@gym.com", TRAINER_ID, TRAINER_CAP_TIME, expect_success=True)

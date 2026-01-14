@@ -1,5 +1,10 @@
 import requests
 import json
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 API_URL = "http://127.0.0.1:8000"
 PASSWORD = "GymStrong2026!"
@@ -13,10 +18,10 @@ def create_user(email, role):
         "default_slots": []
     })
     if response.status_code == 200:
-        print(f"User created: {email}")
+        logger.info(f"User created: {email}")
         return response.json()
     else:
-        print(f"Failed to create user {email}: {response.text}")
+        logger.error(f"Failed to create user {email}: {response.text}")
         return None
 
 def create_trainer(name, user_id):
@@ -28,9 +33,9 @@ def create_trainer(name, user_id):
         "photo_url": "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?auto=format&fit=crop&q=80&w=200&h=200"
     })
     if response.status_code == 200:
-        print(f"Trainer created: {name}")
+        logger.info(f"Trainer created: {name}")
     else:
-        print(f"Failed to create trainer {name}: {response.text}")
+        logger.error(f"Failed to create trainer {name}: {response.text}")
 
 # Main execution
 if __name__ == "__main__":

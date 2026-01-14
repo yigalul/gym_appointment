@@ -1,4 +1,9 @@
 import sqlite3
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 DB_PATH = 'gym.db'
 NEW_PASSWORD = 'GymStrong2026!'
@@ -24,10 +29,11 @@ def update_passwords():
         rows = cursor.rowcount
         
         conn.commit()
-        print(f"Successfully updated passwords for {rows} users to '{NEW_PASSWORD}'")
+        conn.commit()
+        logger.info(f"Successfully updated passwords for {rows} users to '{NEW_PASSWORD}'")
         
     except sqlite3.OperationalError as e:
-        print(f"Database Error: {e}")
+        logger.error(f"Database Error: {e}")
     finally:
         conn.close()
 

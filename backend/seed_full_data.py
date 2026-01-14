@@ -4,6 +4,11 @@ import models
 from passlib.context import CryptContext
 import random
 from datetime import datetime, timedelta
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Init DB
 models.Base.metadata.create_all(bind=engine)
@@ -14,15 +19,15 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 def seed_data():
-    print("--- Starting Data Seeding ---")
+    logger.info("--- Starting Data Seeding ---")
 
     # 1. Clear Appointments
-    print("Clearing all appointments...")
+    logger.info("Clearing all appointments...")
     db.query(models.Appointment).delete()
     db.commit()
 
     # 2. Ensure 3 Trainers
-    print("Seeding Trainers...")
+    logger.info("Seeding Trainers...")
     trainer_names = ["Arnold", "Ronnie"]
     trainers = []
     
@@ -89,10 +94,10 @@ def seed_data():
         
         trainers.append(trainer)
     
-    print(f"Trainers ready: {[t.name for t in trainers]}")
+    logger.info(f"Trainers ready: {[t.name for t in trainers]}")
 
     # 3. Create 4 Customers
-    print("Seeding Customers...")
+    logger.info("Seeding Customers...")
     clients = []
     for i in range(1, 5):
         email = f"client{i}@test.com"
@@ -117,10 +122,10 @@ def seed_data():
                 db.refresh(user)
         clients.append(user)
     
-    print(f"Created {len(clients)} clients.")
+    logger.info(f"Created {len(clients)} clients.")
 
     # 4. Create Random Appointments
-    print("Creating Random Appointments...")
+    logger.info("Creating Random Appointments...")
     
     # Generate some future slots for next week to avoid past-date issues and ensure day matches
     # Start from next Monday
@@ -160,8 +165,8 @@ def seed_data():
         appointments_created += 1
 
     db.commit()
-    print(f"Successfully created {appointments_created} appointments.")
-    print("--- Seeding Complete ---")
+    logger.info(f"Successfully created {appointments_created} appointments.")
+    logger.info("--- Seeding Complete ---")
 
 if __name__ == "__main__":
     seed_data()
