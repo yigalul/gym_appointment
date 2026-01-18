@@ -1,0 +1,156 @@
+
+[DEBUG] Processing limit_test_1768735738.765486@test.com Slot DOY=0 (2027-01-04T09:00:00)
+[DEBUG] Available Trainers for limit_test_1768735738.765486@test.com: 0
+
+[DEBUG] Processing limit_test_1768735738.765486@test.com Slot DOY=1 (2027-01-05T09:00:00)
+[DEBUG] Available Trainers for limit_test_1768735738.765486@test.com: 0
+
+[DEBUG] Processing limit_test_1768735738.765486@test.com Slot DOY=2 (2027-01-06T09:00:00)
+[DEBUG] Available Trainers for limit_test_1768735738.765486@test.com: 0
+
+[DEBUG] Processing limit_test_1768735738.765486@test.com Slot DOY=3 (2027-01-07T09:00:00)
+[DEBUG] Available Trainers for limit_test_1768735738.765486@test.com: 0
+
+[DEBUG] Processing limit1_1768735801.918546@test.com Slot DOY=0 (2027-01-04T09:00:00)
+[DEBUG] Available Trainers for limit1_1768735801.918546@test.com: 0
+
+[DEBUG] Processing limit1_1768735801.918546@test.com Slot DOY=1 (2027-01-05T09:00:00)
+[DEBUG] Available Trainers for limit1_1768735801.918546@test.com: 0
+
+[DEBUG] Processing limit1_1768735801.918546@test.com Slot DOY=2 (2027-01-06T09:00:00)
+[DEBUG] Available Trainers for limit1_1768735801.918546@test.com: 0
+
+[DEBUG] Processing credit1_1768735801.960747@test.com Slot DOY=0 (2027-01-04T10:00:00)
+[DEBUG] Available Trainers for credit1_1768735801.960747@test.com: 0
+
+[DEBUG] Processing credit1_1768735801.960747@test.com Slot DOY=1 (2027-01-05T10:00:00)
+[DEBUG] Available Trainers for credit1_1768735801.960747@test.com: 0
+
+[DEBUG] Processing credit1_1768735801.960747@test.com Slot DOY=2 (2027-01-06T10:00:00)
+[DEBUG] Available Trainers for credit1_1768735801.960747@test.com: 0
+
+[DEBUG] Processing cap_c3_0_1768735801.971514@test.com Slot DOY=0 (2027-01-04T11:00:00)
+[DEBUG] Available Trainers for cap_c3_0_1768735801.971514@test.com: 0
+
+[DEBUG] Processing cap_c3_1_1768735801.981004@test.com Slot DOY=0 (2027-01-04T11:00:00)
+[DEBUG] Available Trainers for cap_c3_1_1768735801.981004@test.com: 0
+
+[DEBUG] Processing cap_c3_2_1768735801.991116@test.com Slot DOY=0 (2027-01-04T11:00:00)
+[DEBUG] Available Trainers for cap_c3_2_1768735801.991116@test.com: 0
+
+[DEBUG] Processing global_c_0_1768735802.041609@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_0_1768735802.041609@test.com: 0
+
+[DEBUG] Processing global_c_1_1768735802.050163@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_1_1768735802.050163@test.com: 0
+
+[DEBUG] Processing global_c_2_1768735802.058561@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_2_1768735802.058561@test.com: 0
+
+[DEBUG] Processing global_c_3_1768735802.06761@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_3_1768735802.06761@test.com: 0
+
+[DEBUG] Processing global_c_4_1768735802.077215@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_4_1768735802.077215@test.com: 0
+
+[DEBUG] Processing global_c_5_1768735802.086205@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_5_1768735802.086205@test.com: 0
+
+[DEBUG] Processing global_c_6_1768735802.095622@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_6_1768735802.095622@test.com: 0
+
+[DEBUG] Processing limit1_1768735838.114396@test.com Slot DOY=0 (2027-01-04T09:00:00)
+[DEBUG] Available Trainers for limit1_1768735838.114396@test.com: 0
+
+[DEBUG] Processing limit1_1768735838.114396@test.com Slot DOY=1 (2027-01-05T09:00:00)
+[DEBUG] Available Trainers for limit1_1768735838.114396@test.com: 0
+
+[DEBUG] Processing limit1_1768735838.114396@test.com Slot DOY=2 (2027-01-06T09:00:00)
+[DEBUG] Available Trainers for limit1_1768735838.114396@test.com: 0
+
+[DEBUG] Processing credit1_1768735838.165929@test.com Slot DOY=0 (2027-01-04T10:00:00)
+[DEBUG] Available Trainers for credit1_1768735838.165929@test.com: 0
+
+[DEBUG] Processing credit1_1768735838.165929@test.com Slot DOY=1 (2027-01-05T10:00:00)
+[DEBUG] Available Trainers for credit1_1768735838.165929@test.com: 0
+
+[DEBUG] Processing credit1_1768735838.165929@test.com Slot DOY=2 (2027-01-06T10:00:00)
+[DEBUG] Available Trainers for credit1_1768735838.165929@test.com: 0
+
+[DEBUG] Processing cap_c3_0_1768735838.176108@test.com Slot DOY=0 (2027-01-04T11:00:00)
+[DEBUG] Available Trainers for cap_c3_0_1768735838.176108@test.com: 0
+
+[DEBUG] Processing cap_c3_1_1768735838.188021@test.com Slot DOY=0 (2027-01-04T11:00:00)
+[DEBUG] Available Trainers for cap_c3_1_1768735838.188021@test.com: 0
+
+[DEBUG] Processing cap_c3_2_1768735838.197623@test.com Slot DOY=0 (2027-01-04T11:00:00)
+[DEBUG] Available Trainers for cap_c3_2_1768735838.197623@test.com: 0
+
+[DEBUG] Processing global_c_0_1768735838.260092@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_0_1768735838.260092@test.com: 0
+
+[DEBUG] Processing global_c_1_1768735838.270318@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_1_1768735838.270318@test.com: 0
+
+[DEBUG] Processing global_c_2_1768735838.281518@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_2_1768735838.281518@test.com: 0
+
+[DEBUG] Processing global_c_3_1768735838.29197@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_3_1768735838.29197@test.com: 0
+
+[DEBUG] Processing global_c_4_1768735838.302112@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_4_1768735838.302112@test.com: 0
+
+[DEBUG] Processing global_c_5_1768735838.311679@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_5_1768735838.311679@test.com: 0
+
+[DEBUG] Processing global_c_6_1768735838.320747@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_6_1768735838.320747@test.com: 0
+
+[DEBUG] Processing limit1_1768735868.928364@test.com Slot DOY=0 (2027-01-04T09:00:00)
+[DEBUG] Available Trainers for limit1_1768735868.928364@test.com: 0
+
+[DEBUG] Processing limit1_1768735868.928364@test.com Slot DOY=1 (2027-01-05T09:00:00)
+[DEBUG] Available Trainers for limit1_1768735868.928364@test.com: 0
+
+[DEBUG] Processing limit1_1768735868.928364@test.com Slot DOY=2 (2027-01-06T09:00:00)
+[DEBUG] Available Trainers for limit1_1768735868.928364@test.com: 0
+
+[DEBUG] Processing credit1_1768735868.993308@test.com Slot DOY=0 (2027-01-04T10:00:00)
+[DEBUG] Available Trainers for credit1_1768735868.993308@test.com: 0
+
+[DEBUG] Processing credit1_1768735868.993308@test.com Slot DOY=1 (2027-01-05T10:00:00)
+[DEBUG] Available Trainers for credit1_1768735868.993308@test.com: 0
+
+[DEBUG] Processing credit1_1768735868.993308@test.com Slot DOY=2 (2027-01-06T10:00:00)
+[DEBUG] Available Trainers for credit1_1768735868.993308@test.com: 0
+
+[DEBUG] Processing cap_c3_0_1768735869.005991@test.com Slot DOY=0 (2027-01-04T11:00:00)
+[DEBUG] Available Trainers for cap_c3_0_1768735869.005991@test.com: 0
+
+[DEBUG] Processing cap_c3_1_1768735869.016781@test.com Slot DOY=0 (2027-01-04T11:00:00)
+[DEBUG] Available Trainers for cap_c3_1_1768735869.016781@test.com: 0
+
+[DEBUG] Processing cap_c3_2_1768735869.026916@test.com Slot DOY=0 (2027-01-04T11:00:00)
+[DEBUG] Available Trainers for cap_c3_2_1768735869.026916@test.com: 0
+
+[DEBUG] Processing global_c_0_1768735869.080594@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_0_1768735869.080594@test.com: 0
+
+[DEBUG] Processing global_c_1_1768735869.08992@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_1_1768735869.08992@test.com: 0
+
+[DEBUG] Processing global_c_2_1768735869.100648@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_2_1768735869.100648@test.com: 0
+
+[DEBUG] Processing global_c_3_1768735869.11025@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_3_1768735869.11025@test.com: 0
+
+[DEBUG] Processing global_c_4_1768735869.12301@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_4_1768735869.12301@test.com: 0
+
+[DEBUG] Processing global_c_5_1768735869.134488@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_5_1768735869.134488@test.com: 0
+
+[DEBUG] Processing global_c_6_1768735869.143493@test.com Slot DOY=0 (2027-01-04T14:00:00)
+[DEBUG] Available Trainers for global_c_6_1768735869.143493@test.com: 0

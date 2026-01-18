@@ -616,7 +616,37 @@ def auto_schedule_week(payload: dict, db: Session = Depends(get_db)):
         if not client.default_slots:
             continue
             
+        # 1.1 Check Weekly Limit (Count existing bookings for this week first)
+        # We need to know how many appts they ALREADY have in this week to enforce limit.
+        # Week range: week_start to week_start + 7 days
+        week_end = week_start + timedelta(days=7)
+        current_week_bookings = db.query(models.Appointment).filter(
+            models.Appointment.client_id == client.id,
+            models.Appointment.start_time >= week_start.isoformat(),
+            models.Appointment.start_time < week_end.isoformat(),
+            models.Appointment.status != 'cancelled'
+        ).count()
+        
+        bookings_this_week = current_week_bookings
+
         for slot in client.default_slots:
+            # Check Limits BEFORE trying to book
+            if bookings_this_week >= client.weekly_workout_limit:
+                 failed_assignments.append({
+                     "client": client.email,
+                     "slot": f"Slot {slot.day_of_week}",
+                     "reason": f"Weekly limit reached ({client.weekly_workout_limit})"
+                 })
+                 continue
+                 
+            if client.workout_credits <= 0:
+                 failed_assignments.append({
+                     "client": client.email,
+                     "slot": f"Slot {slot.day_of_week}",
+                     "reason": "Insufficient credits"
+                 })
+                 continue
+
             # Calculate target appointment datetime
             # slot.day_of_week: 0=Sunday, 1=Monday... (Wait, date-fns uses 0=Sunday? No, Python datetime 0=Monday)
             # Let's standardize: In our system 0=Monday based on seeding. 
@@ -653,30 +683,26 @@ def auto_schedule_week(payload: dict, db: Session = Depends(get_db)):
             # Strategy:
             # 1. Get all trainers who are AVAILABLE (Shift) at this time.
             # 2. Filter out trainers who are FULL (>= 2 clients).
-            # 3. Optimize: Reuse active trainers first to save 'Gym Capacity' slots? Or doesn't matter?
-            #    The rule is "Only 3 trainers can train simultaneously".
-            #    So if 2 trainers are active, we can add a 3rd.
-            #    If 3 are active, we MUST use one of them.
+            
+
             
             available_trainers = []
             
             # Get all trainers
             all_trainers = db.query(models.Trainer).all()
-            
+
             for trainer in all_trainers:
                 # A. Check Shift Availability
-                # slot.start_time is "HH:MM". Availability has start/end.
-                # Simplification: Exact match on start_time since we use fixed slots?
-                # Or range check? Let's use range check.
                 is_working = False
                 for av in trainer.availabilities:
                     if av.day_of_week == slot.day_of_week:
-                        # Check start time match (assuming slots align for now)
+                        # Check start time match
                         if av.start_time <= slot.start_time and av.end_time > slot.start_time:
                             is_working = True
                             break
                             
                 if not is_working:
+                    # with open("debug_auto_schedule.txt", "a") as f: f.write(f"[DEBUG] Trainer {trainer.id} not working/avail\n")
                     continue
 
                 # B. Check Capacity (Max 2 clients)
@@ -686,6 +712,8 @@ def auto_schedule_week(payload: dict, db: Session = Depends(get_db)):
                     models.Appointment.status != "cancelled"
                 ).count()
                 
+
+
                 if current_clients >= 2:
                     continue
                     
@@ -694,9 +722,13 @@ def auto_schedule_week(payload: dict, db: Session = Depends(get_db)):
                 # If global count is already 3, we cannot add a NEW trainer.
                 is_active = current_clients > 0
                 if not is_active and active_trainers_count >= 3:
-                    continue
+                     # Trainer blocked by Global Limit
+
+                     continue
                     
                 available_trainers.append(trainer)
+            
+
             
             if not available_trainers:
                  failed_assignments.append({
@@ -731,6 +763,11 @@ def auto_schedule_week(payload: dict, db: Session = Depends(get_db)):
                 status="confirmed"
             )
             db.add(new_appt)
+            
+            # Update State
+            client.workout_credits -= 1
+            bookings_this_week += 1
+            
             success_count += 1
             
             # Update active count for next iteration (approximate within transaction)
