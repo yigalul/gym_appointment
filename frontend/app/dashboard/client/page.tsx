@@ -1,8 +1,9 @@
 'use client';
 
-import { getTrainers, getAppointments, getCurrentUser, getNotifications, markNotificationRead, getSystemWeek } from '@/lib/store';
-import { Trainer, Appointment, Notification } from '@/lib/types';
-import { Calendar, User, ChevronLeft, ChevronRight, Settings, Plus, Trash2, X, Bell } from 'lucide-react';
+// Import getUser
+import { getTrainers, getAppointments, getCurrentUser, getNotifications, markNotificationRead, getSystemWeek, getUser } from '@/lib/store';
+import { Trainer, Appointment, Notification, User } from '@/lib/types';
+import { Calendar, ChevronLeft, ChevronRight, Settings, Plus, Trash2, X, Bell, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { startOfWeek, endOfWeek, eachDayOfInterval, format, addDays, subDays, isSameDay, parseISO } from 'date-fns';
 
@@ -13,6 +14,7 @@ export default function ClientDashboardPage() {
     const [myBookings, setMyBookings] = useState<Appointment[]>([]);
     const [bookingTrainer, setBookingTrainer] = useState<Trainer | null>(null);
     const [isManageDefaultsOpen, setIsManageDefaultsOpen] = useState(false);
+    const [currentUser, setCurrentUser] = useState<User | null>(null); // State for fresh user data
 
     // Notifications State
     const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -35,6 +37,15 @@ export default function ClientDashboardPage() {
         });
         loadBookings();
         loadNotifications();
+
+        // Refresh User Data
+        const localUser = getCurrentUser();
+        if (localUser) {
+            setCurrentUser(localUser); // Initial load
+            getUser(localUser.id).then(u => {
+                if (u) setCurrentUser(u);
+            });
+        }
     }, []);
 
     const loadBookings = async () => {
@@ -61,6 +72,10 @@ export default function ClientDashboardPage() {
     };
 
     const handleBook = (trainer: Trainer) => {
+        if (currentUser && currentUser.workout_credits !== undefined && currentUser.workout_credits <= 0) {
+            alert("You have 0 credits. Please contact admin to refill.");
+            return;
+        }
         setBookingTrainer(trainer);
     };
 
@@ -74,6 +89,12 @@ export default function ClientDashboardPage() {
                     <p className="text-neutral-400 mt-2">Browse our expert coaches and book a session.</p>
                 </div>
                 <div className="flex items-center gap-3">
+                    {/* Credits Display */}
+                    <div className="px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-lg flex items-center gap-2 text-white">
+                        <Wallet className="w-4 h-4 text-green-400" />
+                        <span className="font-bold">{currentUser?.workout_credits ?? 0}</span>
+                        <span className="text-xs text-neutral-400">Credits</span>
+                    </div>
                     {/* Notifications Button */}
                     <div className="relative">
                         <button
@@ -273,10 +294,18 @@ function DefaultScheduleModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
 
     const handleSave = async () => {
         if (!user) return;
+
+        // Deduplicate slots before saving to prevent backend errors or UI clutter
+        const uniqueSlots = slots.filter((slot, index, self) =>
+            index === self.findIndex((t) => (
+                t.day_of_week === slot.day_of_week && t.start_time === slot.start_time
+            ))
+        );
+
         setIsSaving(true);
         // Import dynamically to avoid circular dep issues in this snippet if generic
         const { updateClientDefaults } = await import('@/lib/store');
-        await updateClientDefaults(user.id, slots);
+        await updateClientDefaults(user.id, uniqueSlots);
         setIsSaving(false);
         onClose();
         // Force reload or state update handled by store update mostly
@@ -284,7 +313,17 @@ function DefaultScheduleModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
     };
 
     const addSlot = () => {
-        setSlots([...slots, { day_of_week: 1, start_time: '09:00' }]);
+        // Smart Add: Increment day from last slot
+        if (slots.length > 0) {
+            const lastSlot = slots[slots.length - 1];
+            // Cycle 0-6 (Sunday-Saturday)
+            // But if last is Saturday (6), next is Sunday (0)
+            const nextDay = (lastSlot.day_of_week + 1) % 7;
+            setSlots([...slots, { day_of_week: nextDay, start_time: '09:00' }]);
+        } else {
+            // Default to Monday if empty
+            setSlots([...slots, { day_of_week: 1, start_time: '09:00' }]);
+        }
     };
 
     const removeSlot = (idx: number) => {

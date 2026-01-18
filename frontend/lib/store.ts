@@ -58,6 +58,19 @@ export async function getUsers(): Promise<User[]> {
     }
 }
 
+
+
+export async function getUser(userId: number): Promise<User | null> {
+    try {
+        const res = await fetch(`${API_Base}/users/${userId}`);
+        if (!res.ok) throw new Error('Failed to fetch user');
+        return res.json();
+    } catch (error) {
+        console.error(error);
+        return null;
+    }
+}
+
 export async function getTrainers(): Promise<Trainer[]> {
     try {
         const res = await fetch(`${API_Base}/trainers/`);
@@ -243,7 +256,7 @@ export async function updateClientDefaults(userId: number, defaultSlots: { day_o
 }
 
 // Update Full User (Admin)
-export async function updateClientUser(userId: number, email: string, defaultSlots: { day_of_week: number; start_time: string }[], weeklyWorkoutLimit: number = 3, phoneNumber?: string, firstName?: string, lastName?: string): Promise<boolean> {
+export async function updateClientUser(userId: number, email: string, defaultSlots: { day_of_week: number; start_time: string }[], weeklyWorkoutLimit: number = 3, phoneNumber?: string, firstName?: string, lastName?: string, workoutCredits?: number): Promise<boolean> {
     try {
         const userRes = await fetch(`${API_Base}/users/${userId}`, {
             method: 'PUT',
@@ -254,7 +267,8 @@ export async function updateClientUser(userId: number, email: string, defaultSlo
                 weekly_workout_limit: weeklyWorkoutLimit,
                 phone_number: phoneNumber,
                 first_name: firstName,
-                last_name: lastName
+                last_name: lastName,
+                workout_credits: workoutCredits
             })
         });
         if (!userRes.ok) throw new Error('Failed to update user');

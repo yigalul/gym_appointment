@@ -78,7 +78,8 @@ def seed_data(db: Session):
             role="client", 
             phone_number=f"+1555010{i:02d}",
             first_name=f"Client{i}",
-            last_name="Test"
+            last_name="Test",
+            workout_credits=10
         ))
     db.add_all(clients)
     
@@ -189,6 +190,9 @@ def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Dep
     
     if user_update.weekly_workout_limit is not None:
         db_user.weekly_workout_limit = user_update.weekly_workout_limit
+        
+    if user_update.workout_credits is not None:
+        db_user.workout_credits = user_update.workout_credits
     
     if user_update.default_slots is not None:
         # Delete existing slots
@@ -499,6 +503,15 @@ def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Dep
     if weekly_count >= user_limit:
         raise HTTPException(status_code=400, detail=f"Weekly workout limit reached ({user_limit} sessions/week).")
 
+    # 5. Check Workout Credits
+    if client_user:
+        if client_user.workout_credits <= 0:
+            raise HTTPException(status_code=400, detail="You have 0 workout credits remaining. Resupply via admin.")
+        
+        # Decrement credits
+        client_user.workout_credits -= 1
+        db.add(client_user) # Update user record
+
     db_appointment = models.Appointment(**appointment.dict())
     db.add(db_appointment)
     db.commit()
@@ -538,6 +551,14 @@ def cancel_appointment(appointment_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Appointment not found")
     
     appointment.status = "cancelled"
+    
+    # Refund Credit
+    if appointment.client_email:
+         client_user = db.query(models.User).filter(models.User.email == appointment.client_email).first()
+         if client_user:
+             client_user.workout_credits += 1
+             db.add(client_user)
+
     db.commit()
     db.refresh(appointment)
     return appointment

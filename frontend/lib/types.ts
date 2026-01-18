@@ -11,6 +11,7 @@ export interface User {
   role: 'admin' | 'trainer' | 'client';
   phone_number?: string;
   weekly_workout_limit?: number;
+  workout_credits?: number; // Added
   default_slots?: ClientDefaultSlot[];
   first_name?: string;
   last_name?: string;

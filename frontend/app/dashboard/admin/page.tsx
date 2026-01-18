@@ -63,6 +63,7 @@ export default function AdminDashboardPage() {
     const [clientEmail, setClientEmail] = useState('');
     const [clientPhoneNumber, setClientPhoneNumber] = useState('');
     const [clientWeeklyLimit, setClientWeeklyLimit] = useState(3);
+    const [clientWorkoutCredits, setClientWorkoutCredits] = useState(10); // Added
     const [defaultSlots, setDefaultSlots] = useState<{ day_of_week: number; start_time: string }[]>([]);
 
     // Slot Inputs
@@ -104,6 +105,7 @@ export default function AdminDashboardPage() {
         setClientEmail('');
         setClientPhoneNumber('');
         setClientWeeklyLimit(3);
+        setClientWorkoutCredits(10); // Reset
         setDefaultSlots([]);
         setEditingUserId(null);
         setIsEditing(false);
@@ -134,6 +136,7 @@ export default function AdminDashboardPage() {
 
     const handleAddClient = async (e: React.FormEvent) => {
         e.preventDefault();
+        // createClientUser doesn't accept credits yet, defaulting to 10 in backend
         const success = await createClientUser(clientEmail, newPassword || 'GymStrong2026!', defaultSlots, clientWeeklyLimit, clientPhoneNumber, clientFirstName, clientLastName);
         if (success) {
             alert('Client added successfully!');
@@ -147,7 +150,7 @@ export default function AdminDashboardPage() {
     const handleUpdateClient = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingUserId) return;
-        const success = await updateClientUser(editingUserId, clientEmail, defaultSlots, clientWeeklyLimit, clientPhoneNumber, clientFirstName, clientLastName);
+        const success = await updateClientUser(editingUserId, clientEmail, defaultSlots, clientWeeklyLimit, clientPhoneNumber, clientFirstName, clientLastName, clientWorkoutCredits);
         if (success) {
             alert('Client updated successfully!');
             resetForms();
@@ -165,6 +168,7 @@ export default function AdminDashboardPage() {
         setClientFirstName(user.first_name || '');
         setClientLastName(user.last_name || '');
         setClientWeeklyLimit(user.weekly_workout_limit || 3);
+        setClientWorkoutCredits(user.workout_credits || 10); // Load credits
         setDefaultSlots(user.default_slots || []);
         setUserType('client');
         setIsEditing(true);
@@ -532,6 +536,15 @@ export default function AdminDashboardPage() {
                                         className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                                     />
                                 </div>
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-xs text-neutral-400">Workout Credits</label>
+                                    <input
+                                        type="number" min="0" required
+                                        value={clientWorkoutCredits} onChange={e => setClientWorkoutCredits(Number(e.target.value))}
+                                        autoComplete="off"
+                                        className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                    />
+                                </div>
                             </div>
 
                             <div className="p-4 bg-neutral-900/50 rounded-lg border border-neutral-700">
@@ -741,6 +754,9 @@ export default function AdminDashboardPage() {
                                         <div className="text-sm text-neutral-500 mt-1 flex gap-2 items-center">
                                             <span className="bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded text-xs">
                                                 Limit: {user.weekly_workout_limit || 3}/wk
+                                            </span>
+                                            <span className="bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded text-xs text-green-400">
+                                                Credits: {user.workout_credits !== undefined ? user.workout_credits : 10}
                                             </span>
                                         </div>
                                         {user.default_slots && user.default_slots.length > 0 && (

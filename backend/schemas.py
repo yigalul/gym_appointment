@@ -16,6 +16,7 @@ class ClientDefaultSlot(ClientDefaultSlotBase):
     class Config:
         from_attributes = True
 
+# UserBase
 class UserBase(BaseModel):
     email: str
     first_name: Optional[str] = None
@@ -23,6 +24,7 @@ class UserBase(BaseModel):
     phone_number: Optional[str] = None
     role: str = "client"
     weekly_workout_limit: int = 3
+    workout_credits: int = 10
 
 class UserCreate(UserBase):
     password: str
@@ -32,6 +34,7 @@ class UserLogin(BaseModel):
     email: str
     password: str
 
+# UserUpdate
 class UserUpdate(BaseModel):
     email: Optional[str] = None
     first_name: Optional[str] = None
@@ -39,6 +42,7 @@ class UserUpdate(BaseModel):
     phone_number: Optional[str] = None
     weekly_workout_limit: Optional[int] = None
     default_slots: Optional[List[ClientDefaultSlotCreate]] = None
+    workout_credits: Optional[int] = None
 
 class User(UserBase):
     id: int
@@ -46,6 +50,7 @@ class User(UserBase):
     last_name: Optional[str] = None
     phone_number: Optional[str] = None
     weekly_workout_limit: int
+    workout_credits: int
     default_slots: List[ClientDefaultSlot] = []
     
     class Config:

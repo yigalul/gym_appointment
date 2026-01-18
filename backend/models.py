@@ -13,6 +13,7 @@ class User(Base):
     role = Column(String)  # 'admin', 'trainer', 'client'
     phone_number = Column(String, nullable=True)
     weekly_workout_limit = Column(Integer, default=3)
+    workout_credits = Column(Integer, default=10) # Default to 10 for now so existing logic doesn't break immediately for new users
 
     trainer_profile = relationship("Trainer", back_populates="user", uselist=False)
     client_appointments = relationship("Appointment", back_populates="client")
