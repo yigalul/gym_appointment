@@ -32,6 +32,10 @@ try:
 except ImportError:
     logger.warning("python-dotenv not installed, skipping .env load")
 
+# Mount Static Files for Uploads
+os.makedirs("static/uploads", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 app.add_middleware(
     CORSMiddleware,
     # allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -140,6 +144,27 @@ def login(creds: schemas.UserLogin, db: Session = Depends(get_db)):
          
     return user
 
+@app.post("/upload/")
+async def upload_file(file: UploadFile = File(...)):
+    try:
+        # Determine file extension
+        filename = file.filename
+        extension = filename.split(".")[-1] if "." in filename else "png"
+        
+        # Generate unique filename
+        new_filename = f"{uuid.uuid4()}.{extension}"
+        file_path = f"static/uploads/{new_filename}"
+        
+        # Save file
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Return URL
+        return {"url": f"http://localhost:8000/{file_path}"}
+    except Exception as e:
+        logger.error(f"Upload failed: {e}")
+        raise HTTPException(status_code=500, detail="File upload failed")
+
 @app.post("/users/", response_model=schemas.User)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = models.User(
@@ -148,7 +173,8 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
         role=user.role,
         phone_number=user.phone_number,
         first_name=user.first_name,
-        last_name=user.last_name
+        last_name=user.last_name,
+        profile_picture_url=user.profile_picture_url
     )
     db.add(db_user)
     db.commit()
@@ -202,6 +228,9 @@ def update_user(user_id: int, user_update: schemas.UserUpdate, db: Session = Dep
         
     if user_update.workout_credits is not None:
         db_user.workout_credits = user_update.workout_credits
+
+    if user_update.profile_picture_url is not None:
+        db_user.profile_picture_url = user_update.profile_picture_url
     
     if user_update.default_slots is not None:
         # Delete existing slots
@@ -268,21 +297,68 @@ def delete_trainer(trainer_id: int, db: Session = Depends(get_db)):
     trainer = db.query(models.Trainer).filter(models.Trainer.id == trainer_id).first()
     if trainer is None:
         raise HTTPException(status_code=404, detail="Trainer not found")
+        
+    # --- FIRE TRAINER LOGIC ---
+    from datetime import datetime
+    now_iso = datetime.now().isoformat()
+    print(f"DEBUG: Firing Trainer {trainer_id} at {now_iso}")
     
-    # Delete associated User if exists (optional cleanup)
+    # 1. Identify Future Appointments (for reporting and refunds)
+    # Debug Query
+    all_appts = db.query(models.Appointment).filter(models.Appointment.trainer_id == trainer_id).all()
+    print(f"DEBUG: Total Appts for Trainer: {len(all_appts)}")
+    for a in all_appts:
+        print(f"   Appt: {a.id} Time: {a.start_time} Status: {a.status}")
+
+    future_appts = db.query(models.Appointment).filter(
+        models.Appointment.trainer_id == trainer_id,
+        models.Appointment.start_time >= now_iso,
+        models.Appointment.status != 'cancelled'
+    ).all()
+    print(f"DEBUG: Future Appts Found: {len(future_appts)}")
+    
+    affected_clients_report = []
+    
+    # 2. Process Refunds & Notifications
+    for appt in future_appts:
+        client = db.query(models.User).filter(models.User.id == appt.client_id).first()
+        if client:
+            client.workout_credits += 1
+            # Add to report
+            affected_clients_report.append({
+                "client_name": client.first_name or client.email.split('@')[0],
+                "client_email": client.email,
+                "appointment_time": appt.start_time,
+                "action": "Refunded 1 Credit"
+            })
+            
+            # Create Notification
+            msg = f"Trainer {trainer.name} is no longer with us. Your appointment on {appt.start_time} has been cancelled and 1 credit refunded."
+            notif = models.Notification(
+                user_id=client.id,
+                message=msg,
+                created_at=datetime.now().isoformat()
+            )
+            db.add(notif)
+            
+    # 3. Delete All Data
+    # Delete associated User if exists
     if trainer.user_id:
         user = db.query(models.User).filter(models.User.id == trainer.user_id).first()
         if user:
             db.delete(user)
     
-    # Trainer cascade deletes appointments/availabilities handled by database or manual cleanup
-    # Here we delete trainer, SQLAlchemy should handle cascade if configured, currently manual:
+    # Delete appointments and availabilities
     db.query(models.Appointment).filter(models.Appointment.trainer_id == trainer_id).delete()
     db.query(models.Availability).filter(models.Availability.trainer_id == trainer_id).delete()
     
     db.delete(trainer)
     db.commit()
-    return {"message": "Trainer deleted successfully"}
+    
+    return {
+        "message": "Trainer fired successfully",
+        "affected_clients": affected_clients_report
+    }
 
 @app.get("/trainers/{trainer_id}", response_model=schemas.Trainer)
 def read_trainer(trainer_id: int, db: Session = Depends(get_db)):
@@ -522,6 +598,11 @@ def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Dep
         db.add(client_user) # Update user record
 
     db_appointment = models.Appointment(**appointment.dict())
+    
+    # Ensure client_id is set if we found the user
+    if client_user and not db_appointment.client_id:
+        db_appointment.client_id = client_user.id
+
     db.add(db_appointment)
     db.commit()
     db.refresh(db_appointment)

@@ -25,6 +25,7 @@ class UserBase(BaseModel):
     role: str = "client"
     weekly_workout_limit: int = 3
     workout_credits: int = 10
+    profile_picture_url: Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
@@ -43,6 +44,7 @@ class UserUpdate(BaseModel):
     weekly_workout_limit: Optional[int] = None
     default_slots: Optional[List[ClientDefaultSlotCreate]] = None
     workout_credits: Optional[int] = None
+    profile_picture_url: Optional[str] = None
 
 class User(UserBase):
     id: int
@@ -51,6 +53,7 @@ class User(UserBase):
     phone_number: Optional[str] = None
     weekly_workout_limit: int
     workout_credits: int
+    profile_picture_url: Optional[str] = None
     default_slots: List[ClientDefaultSlot] = []
     
     class Config:

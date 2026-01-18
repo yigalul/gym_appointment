@@ -12,6 +12,7 @@ export interface User {
   phone_number?: string;
   weekly_workout_limit?: number;
   workout_credits?: number; // Added
+  profile_picture_url?: string;
   default_slots?: ClientDefaultSlot[];
   first_name?: string;
   last_name?: string;

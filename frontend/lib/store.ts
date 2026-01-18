@@ -93,16 +93,17 @@ export async function getTrainerById(id: number): Promise<Trainer | undefined> {
     }
 }
 
-export async function deleteTrainer(trainerId: number): Promise<boolean> {
+export async function deleteTrainer(trainerId: number): Promise<{ success: boolean; report?: any[] }> {
     try {
         const res = await fetch(`${API_Base}/trainers/${trainerId}`, {
             method: 'DELETE',
         });
         if (!res.ok) throw new Error('Failed to delete trainer');
-        return true;
+        const data = await res.json();
+        return { success: true, report: data.affected_clients };
     } catch (error) {
         console.error(error);
-        return false;
+        return { success: false };
     }
 }
 
@@ -146,27 +147,40 @@ export async function updateSystemWeek(date: string): Promise<boolean> {
     }
 }
 
-export async function createTrainerUser(email: string, password: string, name: string, role: string, bio: string): Promise<boolean> {
+interface CreateTrainerParams {
+    name: string;
+    role: string;
+    bio: string;
+    photo_url?: string;
+    email: string;
+    password: string;
+}
+
+export async function createTrainerUser(params: CreateTrainerParams): Promise<boolean> {
     try {
         // 1. Create User
         const userRes = await fetch(`${API_Base}/users/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password, role: 'trainer' })
+            body: JSON.stringify({
+                email: params.email,
+                password: params.password,
+                role: 'trainer'
+            })
         });
-        if (!userRes.ok) throw new Error('Failed to create user');
+        if (!userRes.ok) throw new Error('Failed to create user account');
         const user = await userRes.json();
 
-        // 2. Create Trainer Profile
+        // 2. Create Trainer Profile linked to user
         const trainerRes = await fetch(`${API_Base}/trainers/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                name,
-                role,
-                bio,
+                name: params.name,
+                role: params.role,
+                bio: params.bio,
                 user_id: user.id,
-                photo_url: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?auto=format&fit=crop&q=80&w=200&h=200'
+                photo_url: params.photo_url
             })
         });
         if (!trainerRes.ok) throw new Error('Failed to create trainer profile');
@@ -205,23 +219,26 @@ export async function addUser(user: Partial<User>, password?: string): Promise<U
     }
 }
 
-export async function createClientUser(email: string, password: string, defaultSlots: { day_of_week: number; start_time: string }[], weeklyWorkoutLimit: number = 3, phoneNumber?: string, firstName?: string, lastName?: string): Promise<boolean> {
+export async function createClientUser(email: string, name: string, limit: number, credits: number, profile_picture_url?: string): Promise<boolean> {
     try {
-        const userRes = await fetch(`${API_Base}/users/`, {
+        const [first, ...lastParts] = name.split(' ');
+        const last = lastParts.join(' ');
+
+        const res = await fetch(`${API_Base}/users/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 email,
-                password,
+                password: 'password123', // Default
                 role: 'client',
-                phone_number: phoneNumber,
-                first_name: firstName,
-                last_name: lastName,
-                default_slots: defaultSlots,
-                weekly_workout_limit: weeklyWorkoutLimit
+                first_name: first,
+                last_name: last,
+                weekly_workout_limit: limit,
+                workout_credits: credits,
+                profile_picture_url: profile_picture_url
             })
         });
-        if (!userRes.ok) throw new Error('Failed to create user');
+        if (!res.ok) throw new Error('Failed to create user');
         return true;
     } catch (error) {
         console.error(error);
@@ -256,22 +273,24 @@ export async function updateClientDefaults(userId: number, defaultSlots: { day_o
 }
 
 // Update Full User (Admin)
-export async function updateClientUser(userId: number, email: string, defaultSlots: { day_of_week: number; start_time: string }[], weeklyWorkoutLimit: number = 3, phoneNumber?: string, firstName?: string, lastName?: string, workoutCredits?: number): Promise<boolean> {
+export async function updateClientUser(id: number, email: string, name: string, limit: number, credits: number, profile_picture_url?: string): Promise<boolean> {
     try {
-        const userRes = await fetch(`${API_Base}/users/${userId}`, {
+        const [first, ...lastParts] = name.split(' ');
+        const last = lastParts.join(' ');
+
+        const res = await fetch(`${API_Base}/users/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 email,
-                default_slots: defaultSlots,
-                weekly_workout_limit: weeklyWorkoutLimit,
-                phone_number: phoneNumber,
-                first_name: firstName,
-                last_name: lastName,
-                workout_credits: workoutCredits
+                first_name: first,
+                last_name: last,
+                weekly_workout_limit: limit,
+                workout_credits: credits,
+                profile_picture_url: profile_picture_url
             })
         });
-        if (!userRes.ok) throw new Error('Failed to update user');
+        if (!res.ok) throw new Error('Failed to update user');
         return true;
     } catch (error) {
         console.error(error);

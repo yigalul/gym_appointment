@@ -5,6 +5,7 @@ import { User, Trainer, Appointment } from '@/lib/types';
 import { Users, UserPlus, Trash2, Plus, X, Pencil, Calendar, XCircle, Search, ChevronLeft, ChevronRight, Wand2, AlertCircle, CheckCircle, RotateCcw, BrainCircuit } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { startOfWeek, endOfWeek, eachDayOfInterval, format, addDays, subDays, isSameDay, parseISO, startOfDay } from 'date-fns';
+import ImageUpload from '@/components/ImageUpload';
 
 export default function AdminDashboardPage() {
     const [users, setUsers] = useState<User[]>([]);
@@ -66,6 +67,10 @@ export default function AdminDashboardPage() {
     const [clientWorkoutCredits, setClientWorkoutCredits] = useState(10); // Added
     const [defaultSlots, setDefaultSlots] = useState<{ day_of_week: number; start_time: string }[]>([]);
 
+    // Image Upload State
+    const [trainerPhoto, setTrainerPhoto] = useState<string>('');
+    const [clientPhoto, setClientPhoto] = useState<string>('');
+
     // Slot Inputs
     const [slotDay, setSlotDay] = useState(1);
     const [slotHour, setSlotHour] = useState(9); // 0-23
@@ -74,6 +79,7 @@ export default function AdminDashboardPage() {
     const [scheduleReport, setScheduleReport] = useState<any | null>(null); // Type 'any' for now to support dynamic fields
     const [isScheduling, setIsScheduling] = useState(false);
     const [hasLastReport, setHasLastReport] = useState(false);
+    const [firingReport, setFiringReport] = useState<any[] | null>(null); // New state for firing report
 
     useEffect(() => {
         // Check if report exists
@@ -97,16 +103,10 @@ export default function AdminDashboardPage() {
 
 
     const clearInputs = () => {
-        setNewName('');
-        setNewEmail('');
-        setNewPassword('');
-        setClientFirstName('');
-        setClientLastName('');
-        setClientEmail('');
-        setClientPhoneNumber('');
-        setClientWeeklyLimit(3);
-        setClientWorkoutCredits(10); // Reset
-        setDefaultSlots([]);
+        setNewName(''); setNewEmail(''); setNewPassword(''); setNewRole('Strength Coach');
+        setClientFirstName(''); setClientLastName(''); setClientEmail(''); setClientPhoneNumber('');
+        setClientWeeklyLimit(3); setClientWorkoutCredits(10); setDefaultSlots([]);
+        setTrainerPhoto(''); setClientPhoto('');
         setEditingUserId(null);
         setIsEditing(false);
     };
@@ -124,39 +124,47 @@ export default function AdminDashboardPage() {
 
     const handleAddTrainer = async (e: React.FormEvent) => {
         e.preventDefault();
-        const success = await createTrainerUser(newName, newRole, newEmail, "Expert trainer.", newPassword || 'password123');
-        if (success) {
-            alert('Trainer added successfully!');
+        try {
+            await createTrainerUser({
+                email: newEmail,
+                password: newPassword,
+                name: newName,
+                role: newRole,
+                bio: "Experienced trainer",
+                photo_url: trainerPhoto
+            });
+            setSuccessMsg('Trainer added successfully');
             resetForms();
             refreshData();
-        } else {
-            alert('Failed to add trainer.');
+        } catch (error) {
+            setErrorMsg('Failed to add trainer.');
         }
     };
 
     const handleAddClient = async (e: React.FormEvent) => {
         e.preventDefault();
-        // createClientUser doesn't accept credits yet, defaulting to 10 in backend
-        const success = await createClientUser(clientEmail, newPassword || 'GymStrong2026!', defaultSlots, clientWeeklyLimit, clientPhoneNumber, clientFirstName, clientLastName);
-        if (success) {
-            alert('Client added successfully!');
+        try {
+            const fullName = `${clientFirstName} ${clientLastName}`;
+            await createClientUser(clientEmail, fullName, clientWeeklyLimit, clientWorkoutCredits, clientPhoto);
+            setSuccessMsg('Client added successfully');
             resetForms();
             refreshData();
-        } else {
-            alert('Failed to add client.');
+        } catch (error) {
+            setErrorMsg('Failed to add client.');
         }
     };
 
     const handleUpdateClient = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingUserId) return;
-        const success = await updateClientUser(editingUserId, clientEmail, defaultSlots, clientWeeklyLimit, clientPhoneNumber, clientFirstName, clientLastName, clientWorkoutCredits);
-        if (success) {
-            alert('Client updated successfully!');
+        try {
+            const fullName = `${clientFirstName} ${clientLastName}`;
+            await updateClientUser(editingUserId, clientEmail, fullName, clientWeeklyLimit, clientWorkoutCredits, clientPhoto);
+            setSuccessMsg('Client updated successfully');
             resetForms();
             refreshData();
-        } else {
-            alert('Failed to update client.');
+        } catch (error) {
+            setErrorMsg('Failed to update client.');
         }
     };
 
@@ -193,8 +201,13 @@ export default function AdminDashboardPage() {
             return;
         }
 
-        const success = await deleteTrainer(trainer.id);
-        if (success) {
+        const result = await deleteTrainer(trainer.id);
+        if (result.success) {
+            if (result.report && result.report.length > 0) {
+                setFiringReport(result.report);
+            } else {
+                alert('Trainer deleted successfully.');
+            }
             refreshData();
         } else {
             alert('Failed to delete trainer.');
@@ -459,32 +472,41 @@ export default function AdminDashboardPage() {
 
                     {userType === 'trainer' ? (
                         <form onSubmit={handleAddTrainer} className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <input
-                                    type="text" placeholder="Full Name" required
-                                    value={newName} onChange={e => setNewName(e.target.value)}
-                                    autoComplete="off"
-                                    className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
-                                />
-                                <input
-                                    type="email" placeholder="Email Address" required
-                                    value={newEmail} onChange={e => setNewEmail(e.target.value)}
-                                    autoComplete="off"
-                                    className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
-                                />
+                            <div className="flex flex-col md:flex-row gap-6">
+                                <div className="flex-shrink-0">
+                                    <ImageUpload
+                                        currentImage={trainerPhoto}
+                                        onImageUploaded={setTrainerPhoto}
+                                        label="Trainer Photo"
+                                    />
+                                </div>
+                                <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <input
+                                        type="text" placeholder="Full Name" required
+                                        value={newName} onChange={e => setNewName(e.target.value)}
+                                        autoComplete="off"
+                                        className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                    />
+                                    <input
+                                        type="email" placeholder="Email Address" required
+                                        value={newEmail} onChange={e => setNewEmail(e.target.value)}
+                                        autoComplete="off"
+                                        className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                    />
 
-                                <input
-                                    type="password" placeholder="Password" required
-                                    value={newPassword} onChange={e => setNewPassword(e.target.value)}
-                                    autoComplete="new-password"
-                                    className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
-                                />
-                                <input
-                                    type="text" placeholder="Specialty / Role" required
-                                    value={newRole} onChange={e => setNewRole(e.target.value)}
-                                    autoComplete="off"
-                                    className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
-                                />
+                                    <input
+                                        type="password" placeholder="Password" required
+                                        value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                                        autoComplete="new-password"
+                                        className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                    />
+                                    <input
+                                        type="text" placeholder="Specialty / Role" required
+                                        value={newRole} onChange={e => setNewRole(e.target.value)}
+                                        autoComplete="off"
+                                        className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                    />
+                                </div>
                             </div>
                             <div className="flex justify-end gap-3">
                                 <button type="button" onClick={resetForms} className="px-6 py-2 bg-neutral-700 text-white font-semibold rounded-lg hover:bg-neutral-600">
@@ -497,58 +519,68 @@ export default function AdminDashboardPage() {
                         </form>
                     ) : (
                         <form onSubmit={isEditing ? handleUpdateClient : handleAddClient} className="space-y-4" autoComplete="off">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <input
-                                    type="text" placeholder="First Name"
-                                    value={clientFirstName} onChange={e => setClientFirstName(e.target.value)}
-                                    autoComplete="given-name"
-                                    className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
-                                />
-                                <input
-                                    type="text" placeholder="Last Name"
-                                    value={clientLastName} onChange={e => setClientLastName(e.target.value)}
-                                    autoComplete="family-name"
-                                    className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
-                                />
-                                <input
-                                    type="email" placeholder="Client Email" required
-                                    value={clientEmail} onChange={e => setClientEmail(e.target.value)}
-                                    autoComplete="off"
-                                    className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
-                                />
-                                <input
-                                    type="text" placeholder="Phone Number (e.g. +1234567890)"
-                                    value={clientPhoneNumber} onChange={e => setClientPhoneNumber(e.target.value)}
-                                    autoComplete="tel"
-                                    className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
-                                />
-                                {!isEditing && (
-                                    <input
-                                        type="password" placeholder="Password" required
-                                        value={newPassword} onChange={e => setNewPassword(e.target.value)}
-                                        autoComplete="new-password"
-                                        className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
-                                    />
-                                )}
-                                <div className="flex flex-col gap-1">
-                                    <label className="text-xs text-neutral-400">Weekly Workout Limit</label>
-                                    <input
-                                        type="number" min="1" max="7" required
-                                        value={clientWeeklyLimit} onChange={e => setClientWeeklyLimit(Number(e.target.value))}
-                                        autoComplete="off"
-                                        className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                            <div className="flex flex-col md:flex-row gap-6">
+                                <div className="flex-shrink-0">
+                                    <ImageUpload
+                                        currentImage={clientPhoto}
+                                        onImageUploaded={setClientPhoto}
+                                        label="Client Photo"
                                     />
                                 </div>
-                                <div className="flex flex-col gap-1">
-                                    <label className="text-xs text-neutral-400">Workout Credits</label>
+                                <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <input
-                                        type="number" min="0" required
-                                        value={clientWorkoutCredits} onChange={e => setClientWorkoutCredits(Number(e.target.value))}
+                                        type="text" placeholder="First Name"
+                                        value={clientFirstName} onChange={e => setClientFirstName(e.target.value)}
+                                        autoComplete="given-name"
+                                        className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                    />
+                                    <input
+                                        type="text" placeholder="Last Name"
+                                        value={clientLastName} onChange={e => setClientLastName(e.target.value)}
+                                        autoComplete="family-name"
+                                        className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                    />
+                                    <input
+                                        type="email" placeholder="Client Email" required
+                                        value={clientEmail} onChange={e => setClientEmail(e.target.value)}
                                         autoComplete="off"
                                         className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
                                     />
+                                    <input
+                                        type="text" placeholder="Phone Number (e.g. +1234567890)"
+                                        value={clientPhoneNumber} onChange={e => setClientPhoneNumber(e.target.value)}
+                                        autoComplete="tel"
+                                        className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                    />
+                                    {!isEditing && (
+                                        <input
+                                            type="password" placeholder="Password" required
+                                            value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                                            autoComplete="new-password"
+                                            className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                        />
+                                    )}
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-xs text-neutral-400">Weekly Workout Limit</label>
+                                        <input
+                                            type="number" min="1" max="7" required
+                                            value={clientWeeklyLimit} onChange={e => setClientWeeklyLimit(Number(e.target.value))}
+                                            autoComplete="off"
+                                            className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-xs text-neutral-400">Workout Credits</label>
+                                        <input
+                                            type="number" min="0" required
+                                            value={clientWorkoutCredits} onChange={e => setClientWorkoutCredits(Number(e.target.value))}
+                                            autoComplete="off"
+                                            className="bg-neutral-900 border border-neutral-700 rounded-lg px-4 py-2 text-white outline-none focus:border-blue-500"
+                                        />
+                                    </div>
                                 </div>
                             </div>
+
 
                             <div className="p-4 bg-neutral-900/50 rounded-lg border border-neutral-700">
                                 <h4 className="text-sm font-medium text-neutral-300 mb-3">Default Slot Spaces</h4>
@@ -610,49 +642,109 @@ export default function AdminDashboardPage() {
                         </form>
                     )}
                 </div>
-            )}
+            )
+            }
 
             {/* Message Modal */}
-            {isMsgModalOpen && msgTargetUser && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
-                    <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-md p-6 shadow-2xl scale-100 animate-in zoom-in-95">
-                        <h3 className="text-xl font-bold text-white mb-2">Send WhatsApp Message</h3>
-                        <p className="text-neutral-400 text-sm mb-6">
-                            To: <span className="text-white font-medium">{msgTargetUser.first_name} {msgTargetUser.last_name}</span>
-                            <br />
-                            <span className="text-xs text-neutral-500">{msgTargetUser.phone_number || 'No Phone'} • {msgTargetUser.email}</span>
-                        </p>
+            {
+                isMsgModalOpen && msgTargetUser && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+                        <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-md p-6 shadow-2xl scale-100 animate-in zoom-in-95">
+                            <h3 className="text-xl font-bold text-white mb-2">Send WhatsApp Message</h3>
+                            <p className="text-neutral-400 text-sm mb-6">
+                                To: <span className="text-white font-medium">{msgTargetUser.first_name} {msgTargetUser.last_name}</span>
+                                <br />
+                                <span className="text-xs text-neutral-500">{msgTargetUser.phone_number || 'No Phone'} • {msgTargetUser.email}</span>
+                            </p>
 
-                        <form onSubmit={handleSendMessage} className="space-y-4">
-                            <textarea
-                                autoFocus
-                                value={msgContent}
-                                onChange={e => setMsgContent(e.target.value)}
-                                placeholder="Type your message here..."
-                                className="w-full h-32 bg-neutral-800 border border-neutral-700 rounded-lg p-3 text-white outline-none focus:border-green-500 resize-none font-sans"
-                                required
-                            />
+                            <form onSubmit={handleSendMessage} className="space-y-4">
+                                <textarea
+                                    autoFocus
+                                    value={msgContent}
+                                    onChange={e => setMsgContent(e.target.value)}
+                                    placeholder="Type your message here..."
+                                    className="w-full h-32 bg-neutral-800 border border-neutral-700 rounded-lg p-3 text-white outline-none focus:border-green-500 resize-none font-sans"
+                                    required
+                                />
 
-                            <div className="flex justify-end gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsMsgModalOpen(false)}
-                                    className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg transition-colors font-medium"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isSendingMsg}
-                                    className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
-                                >
-                                    {isSendingMsg ? 'Sending...' : 'Send Message'}
+                                <div className="flex justify-end gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsMsgModalOpen(false)}
+                                        className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg transition-colors font-medium"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={isSendingMsg}
+                                        className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
+                                    >
+                                        {isSendingMsg ? 'Sending...' : 'Send Message'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Firing Report Modal */}
+            {
+                firingReport && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+                        <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-2xl p-6 shadow-2xl scale-100 animate-in zoom-in-95">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <AlertCircle className="w-5 h-5 text-orange-500" />
+                                    Trainer Fired - Impact Report
+                                </h3>
+                                <button onClick={() => setFiringReport(null)} className="text-neutral-400 hover:text-white">
+                                    <X className="w-5 h-5" />
                                 </button>
                             </div>
-                        </form>
+
+                            <div className="mb-6 p-4 bg-orange-500/10 border border-orange-500/20 rounded-lg text-orange-200">
+                                The trainer has been deleted. The following client appointments were cancelled and credits refunded.
+                            </div>
+
+                            <div className="bg-neutral-800/50 rounded-lg border border-neutral-700 overflow-hidden max-h-96 overflow-y-auto">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-neutral-800 text-neutral-400">
+                                        <tr>
+                                            <th className="p-3">Client</th>
+                                            <th className="p-3">Email</th>
+                                            <th className="p-3">Appointment</th>
+                                            <th className="p-3">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-neutral-700">
+                                        {firingReport.map((item, idx) => (
+                                            <tr key={idx} className="text-neutral-300">
+                                                <td className="p-3 font-medium text-white">{item.client_name}</td>
+                                                <td className="p-3">{item.client_email}</td>
+                                                <td className="p-3">{format(parseISO(item.appointment_time), 'MMM d, h:mm a')}</td>
+                                                <td className="p-3 text-green-400 flex items-center gap-1">
+                                                    <CheckCircle className="w-3 h-3" /> {item.action}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div className="mt-6 flex justify-end">
+                                <button
+                                    onClick={() => setFiringReport(null)}
+                                    className="px-6 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-medium rounded-lg transition-colors"
+                                >
+                                    Close Report
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Tabs & Search Bar */}
             <div className="space-y-4">
@@ -696,427 +788,435 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* TAB CONTENT: TRAINERS */}
-            {activeTab === 'trainers' && (
-                <div className="bg-neutral-800/30 rounded-xl border border-neutral-800 overflow-hidden">
-                    <div className="p-6 border-b border-neutral-800">
-                        <h3 className="text-lg font-semibold text-white">Trainers Directory</h3>
-                    </div>
-                    <div>
-                        {filteredTrainers.length === 0 ? (
-                            <div className="p-8 text-center text-neutral-500">No trainers found matching "{searchQuery}".</div>
-                        ) : (
-                            filteredTrainers.map((trainer) => (
-                                <div key={trainer.id} className="p-4 flex items-center justify-between border-b border-neutral-800 last:border-0 hover:bg-neutral-800/30 transition-colors">
-                                    <div className="flex items-center gap-4">
-                                        <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold">
-                                            {trainer.name.charAt(0)}
+            {
+                activeTab === 'trainers' && (
+                    <div className="bg-neutral-800/30 rounded-xl border border-neutral-800 overflow-hidden">
+                        <div className="p-6 border-b border-neutral-800">
+                            <h3 className="text-lg font-semibold text-white">Trainers Directory</h3>
+                        </div>
+                        <div>
+                            {filteredTrainers.length === 0 ? (
+                                <div className="p-8 text-center text-neutral-500">No trainers found matching "{searchQuery}".</div>
+                            ) : (
+                                filteredTrainers.map((trainer) => (
+                                    <div key={trainer.id} className="p-4 flex items-center justify-between border-b border-neutral-800 last:border-0 hover:bg-neutral-800/30 transition-colors">
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold">
+                                                {trainer.name.charAt(0)}
+                                            </div>
+                                            <div>
+                                                <div className="font-medium text-white">{trainer.name}</div>
+                                                <div className="text-sm text-neutral-500">{trainer.role}</div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <div className="font-medium text-white">{trainer.name}</div>
-                                            <div className="text-sm text-neutral-500">{trainer.role}</div>
+                                        <div className="flex items-center gap-4">
+                                            <div className="text-sm text-neutral-600 hidden md:block">
+                                                {trainer.availabilities && trainer.availabilities.length > 0
+                                                    ? trainer.availabilities.map(a => `${dayName(a.day_of_week)} ${a.start_time}`).join(', ')
+                                                    : 'No schedule'}
+                                            </div>
+                                            <button
+                                                onClick={() => handleDeleteTrainer(trainer.user_id || 0)}
+                                                className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                title="Delete Trainer"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-4">
-                                        <div className="text-sm text-neutral-600 hidden md:block">
-                                            {trainer.availabilities && trainer.availabilities.length > 0
-                                                ? trainer.availabilities.map(a => `${dayName(a.day_of_week)} ${a.start_time}`).join(', ')
-                                                : 'No schedule'}
-                                        </div>
-                                        <button
-                                            onClick={() => handleDeleteTrainer(trainer.user_id || 0)}
-                                            className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                                            title="Delete Trainer"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
-                        )}
+                                ))
+                            )}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
 
             {/* TAB CONTENT: CLIENTS */}
-            {activeTab === 'clients' && (
-                <div className="bg-neutral-800/30 rounded-xl border border-neutral-800 overflow-hidden">
-                    <div className="p-6 border-b border-neutral-800">
-                        <h3 className="text-lg font-semibold text-white">Clients Directory</h3>
-                    </div>
-                    <div>
-                        {filteredClients.length === 0 ? (
-                            <div className="p-8 text-center text-neutral-500">No clients found matching "{searchQuery}".</div>
-                        ) : (
-                            filteredClients.map((user) => (
-                                <div key={user.id} className="p-4 flex items-center justify-between border-b border-neutral-800 last:border-0 hover:bg-neutral-800/30 transition-colors">
-                                    <div>
-                                        <div className="font-medium text-white">{user.first_name} {user.last_name}</div>
-                                        <div className="text-sm text-neutral-500">{user.email}</div>
-                                        {user.phone_number && <div className="text-xs text-neutral-400">{user.phone_number}</div>}
-                                        <div className="text-sm text-neutral-500 mt-1 flex gap-2 items-center">
-                                            <span className="bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded text-xs">
-                                                Limit: {user.weekly_workout_limit || 3}/wk
-                                            </span>
-                                            <span className="bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded text-xs text-green-400">
-                                                Credits: {user.workout_credits !== undefined ? user.workout_credits : 10}
-                                            </span>
-                                        </div>
-                                        {user.default_slots && user.default_slots.length > 0 && (
-                                            <div className="mt-2 flex gap-1 flex-wrap">
-                                                {user.default_slots.map((slot, idx) => (
-                                                    <span key={idx} className="text-xs px-2 py-0.5 bg-neutral-900 border border-neutral-800 rounded-full text-neutral-400">
-                                                        {dayName(slot.day_of_week)} {slot.start_time}
-                                                    </span>
-                                                ))}
+            {
+                activeTab === 'clients' && (
+                    <div className="bg-neutral-800/30 rounded-xl border border-neutral-800 overflow-hidden">
+                        <div className="p-6 border-b border-neutral-800">
+                            <h3 className="text-lg font-semibold text-white">Clients Directory</h3>
+                        </div>
+                        <div>
+                            {filteredClients.length === 0 ? (
+                                <div className="p-8 text-center text-neutral-500">No clients found matching "{searchQuery}".</div>
+                            ) : (
+                                filteredClients.map((user) => (
+                                    <div key={user.id} className="p-4 flex items-center justify-between border-b border-neutral-800 last:border-0 hover:bg-neutral-800/30 transition-colors">
+                                        <div>
+                                            <div className="font-medium text-white">{user.first_name} {user.last_name}</div>
+                                            <div className="text-sm text-neutral-500">{user.email}</div>
+                                            {user.phone_number && <div className="text-xs text-neutral-400">{user.phone_number}</div>}
+                                            <div className="text-sm text-neutral-500 mt-1 flex gap-2 items-center">
+                                                <span className="bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded text-xs">
+                                                    Limit: {user.weekly_workout_limit || 3}/wk
+                                                </span>
+                                                <span className="bg-neutral-900 border border-neutral-800 px-2 py-0.5 rounded text-xs text-green-400">
+                                                    Credits: {user.workout_credits !== undefined ? user.workout_credits : 10}
+                                                </span>
                                             </div>
-                                        )}
+                                            {user.default_slots && user.default_slots.length > 0 && (
+                                                <div className="mt-2 flex gap-1 flex-wrap">
+                                                    {user.default_slots.map((slot, idx) => (
+                                                        <span key={idx} className="text-xs px-2 py-0.5 bg-neutral-900 border border-neutral-800 rounded-full text-neutral-400">
+                                                            {dayName(slot.day_of_week)} {slot.start_time}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => openMessageModal(user)}
+                                                className="p-2 text-green-500 hover:bg-green-500/10 rounded-lg transition-colors"
+                                                title="Send WhatsApp Message"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-message-circle"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg>
+                                            </button>
+                                            <button
+                                                onClick={() => startEditClient(user)}
+                                                className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
+                                                title="Edit Client Attributes"
+                                            >
+                                                <Pencil className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteClient(user.id)}
+                                                className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                title="Delete Client"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => openMessageModal(user)}
-                                            className="p-2 text-green-500 hover:bg-green-500/10 rounded-lg transition-colors"
-                                            title="Send WhatsApp Message"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-message-circle"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg>
-                                        </button>
-                                        <button
-                                            onClick={() => startEditClient(user)}
-                                            className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-lg transition-colors"
-                                            title="Edit Client Attributes"
-                                        >
-                                            <Pencil className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDeleteClient(user.id)}
-                                            className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                                            title="Delete Client"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))
-                        )}
+                                ))
+                            )}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
 
             {/* TAB CONTENT: APPOINTMENTS */}
-            {activeTab === 'appointments' && (
-                <div className="space-y-4">
-                    {/* Week Header */}
-                    <div className="flex items-center justify-between bg-neutral-900 p-4 rounded-xl border border-neutral-800">
-                        <div className="flex items-center gap-4">
-                            <button onClick={prevWeek} className="p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors">
-                                <ChevronLeft className="w-5 h-5" />
-                            </button>
-                            <span className="text-white font-medium">
-                                {format(weekDays[0], 'MMM d')} - {format(weekDays[6], 'MMM d, yyyy')}
-                            </span>
-                            <button onClick={nextWeek} className="p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors">
-                                <ChevronRight className="w-5 h-5" />
-                            </button>
-
-                            <button
-                                onClick={goToCurrentWeek}
-                                className="ml-2 p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors"
-                                title="Go to Current Week"
-                            >
-                                <RotateCcw className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-2 text-xs text-neutral-500 mr-4">
-                                <div className="w-2 h-2 rounded-full bg-green-500/20 border border-green-500/50"></div> Confirmed
-                                <div className="w-2 h-2 rounded-full bg-red-500/20 border border-red-500/50"></div> Cancelled
-                            </div>
-                            <button
-                                onClick={handleClearWeek}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-2 mr-2 ${confirmClear
-                                    ? 'bg-red-600 text-white animate-pulse font-bold'
-                                    : 'bg-red-600/10 text-red-500 hover:bg-red-600 hover:text-white'
-                                    }`}
-                                title="Delete all appointments for this week"
-                            >
-                                <Trash2 className="w-3 h-3" />
-                                {confirmClear ? 'Confirm Delete?' : 'Clear Week'}
-                            </button>
-                            <button
-                                onClick={handleAutoSchedule}
-                                disabled={isScheduling}
-                                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-2 mr-2 ${confirmSchedule
-                                    ? 'bg-blue-600 text-white animate-pulse font-bold'
-                                    : 'bg-blue-600 hover:bg-blue-500 text-white'
-                                    }`}
-                            >
-                                <Wand2 className="w-3 h-3" />
-                                {isScheduling ? 'Scheduling...' : (confirmSchedule ? 'Run Schedule?' : 'Auto-Schedule')}
-                            </button>
-                            {hasLastReport && (
-                                <button
-                                    onClick={handleViewLastReport}
-                                    className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium rounded-lg transition-colors border border-neutral-700 mr-2"
-                                >
-                                    View Last Report
+            {
+                activeTab === 'appointments' && (
+                    <div className="space-y-4">
+                        {/* Week Header */}
+                        <div className="flex items-center justify-between bg-neutral-900 p-4 rounded-xl border border-neutral-800">
+                            <div className="flex items-center gap-4">
+                                <button onClick={prevWeek} className="p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors">
+                                    <ChevronLeft className="w-5 h-5" />
                                 </button>
-                            )}
-                            <button
-                                onClick={() => setViewMode(viewMode === 'list' ? 'week' : 'list')}
-                                className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium rounded-lg transition-colors border border-neutral-700"
-                            >
-                                {viewMode === 'list' ? 'Switch to Grid' : 'Switch to List'}
-                            </button>
-                        </div>
-                    </div>
+                                <span className="text-white font-medium">
+                                    {format(weekDays[0], 'MMM d')} - {format(weekDays[6], 'MMM d, yyyy')}
+                                </span>
+                                <button onClick={nextWeek} className="p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors">
+                                    <ChevronRight className="w-5 h-5" />
+                                </button>
 
-                    {viewMode === 'list' ? (
-                        <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6">
-                            <table className="w-full text-left">
-                                <thead className="text-sm text-neutral-400 border-b border-neutral-800">
-                                    <tr>
-                                        <th className="pb-4 font-medium">Trainer</th>
-                                        <th className="pb-4 font-medium">Client</th>
-                                        <th className="pb-4 font-medium">Date & Time</th>
-                                        <th className="pb-4 font-medium">Status</th>
-                                        <th className="pb-4 font-medium text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="text-sm">
-                                    {filteredAppointments.length === 0 ? (
+                                <button
+                                    onClick={goToCurrentWeek}
+                                    className="ml-2 p-2 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors"
+                                    title="Go to Current Week"
+                                >
+                                    <RotateCcw className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 text-xs text-neutral-500 mr-4">
+                                    <div className="w-2 h-2 rounded-full bg-green-500/20 border border-green-500/50"></div> Confirmed
+                                    <div className="w-2 h-2 rounded-full bg-red-500/20 border border-red-500/50"></div> Cancelled
+                                </div>
+                                <button
+                                    onClick={handleClearWeek}
+                                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-2 mr-2 ${confirmClear
+                                        ? 'bg-red-600 text-white animate-pulse font-bold'
+                                        : 'bg-red-600/10 text-red-500 hover:bg-red-600 hover:text-white'
+                                        }`}
+                                    title="Delete all appointments for this week"
+                                >
+                                    <Trash2 className="w-3 h-3" />
+                                    {confirmClear ? 'Confirm Delete?' : 'Clear Week'}
+                                </button>
+                                <button
+                                    onClick={handleAutoSchedule}
+                                    disabled={isScheduling}
+                                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-2 mr-2 ${confirmSchedule
+                                        ? 'bg-blue-600 text-white animate-pulse font-bold'
+                                        : 'bg-blue-600 hover:bg-blue-500 text-white'
+                                        }`}
+                                >
+                                    <Wand2 className="w-3 h-3" />
+                                    {isScheduling ? 'Scheduling...' : (confirmSchedule ? 'Run Schedule?' : 'Auto-Schedule')}
+                                </button>
+                                {hasLastReport && (
+                                    <button
+                                        onClick={handleViewLastReport}
+                                        className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium rounded-lg transition-colors border border-neutral-700 mr-2"
+                                    >
+                                        View Last Report
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => setViewMode(viewMode === 'list' ? 'week' : 'list')}
+                                    className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-medium rounded-lg transition-colors border border-neutral-700"
+                                >
+                                    {viewMode === 'list' ? 'Switch to Grid' : 'Switch to List'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {viewMode === 'list' ? (
+                            <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6">
+                                <table className="w-full text-left">
+                                    <thead className="text-sm text-neutral-400 border-b border-neutral-800">
                                         <tr>
-                                            <td colSpan={5} className="py-8 text-center text-neutral-500">
-                                                No appointments found for search "{searchQuery}".
-                                            </td>
+                                            <th className="pb-4 font-medium">Trainer</th>
+                                            <th className="pb-4 font-medium">Client</th>
+                                            <th className="pb-4 font-medium">Date & Time</th>
+                                            <th className="pb-4 font-medium">Status</th>
+                                            <th className="pb-4 font-medium text-right">Actions</th>
                                         </tr>
-                                    ) : (
-                                        filteredAppointments.map((appt) => {
-                                            const trainer = trainers.find(t => t.id === appt.trainer_id);
-                                            const date = new Date(appt.start_time);
-                                            return (
-                                                <tr key={appt.id} className="border-b border-neutral-800/50 last:border-0 hover:bg-neutral-800/20 transition-colors">
-                                                    <td className="py-4 text-white font-medium">{trainer?.name || 'Unknown'}</td>
-                                                    <td className="py-4 text-neutral-300">
-                                                        <div className="flex flex-col">
-                                                            <span>{appt.client_name}</span>
-                                                            <span className="text-xs text-neutral-500">{appt.client_email}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="py-4 text-neutral-300">
-                                                        {date.toLocaleDateString()} at {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    </td>
-                                                    <td className="py-4">
-                                                        <span className={`px-2 py-1 rounded text-xs font-bold ${appt.status === 'confirmed' ? 'bg-green-500/20 text-green-400' :
-                                                            appt.status === 'cancelled' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-500'
-                                                            }`}>
-                                                            {appt.status.toUpperCase()}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-4 text-right">
-                                                        {appt.status !== 'cancelled' && (
-                                                            <button
-                                                                onClick={() => handleCancelAppointment(appt.id)}
-                                                                className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
-                                                                title="Cancel Appointment"
-                                                            >
-                                                                <XCircle className="w-4 h-4" />
-                                                            </button>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    ) : (
-                        <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl overflow-hidden overflow-x-auto">
-                            <div className="min-w-[800px]">
-                                {/* Grid Header */}
-                                <div className="grid grid-cols-8 border-b border-neutral-800">
-                                    <div className="p-4 text-neutral-500 text-xs font-medium border-r border-neutral-800 sticky left-0 bg-neutral-900 z-10">
-                                        Time
-                                    </div>
-                                    {weekDays.map((day, idx) => (
-                                        <div key={idx} className={`p-4 text-center border-r border-neutral-800 last:border-r-0 ${isSameDay(day, new Date()) ? 'bg-blue-500/5' : ''}`}>
-                                            <div className={`text-xs font-medium uppercase mb-1 ${isSameDay(day, new Date()) ? 'text-blue-500' : 'text-neutral-500'}`}>
-                                                {format(day, 'EEE')}
-                                            </div>
-                                            <div className={`text-sm font-semibold ${isSameDay(day, new Date()) ? 'text-blue-400' : 'text-white'}`}>
-                                                {format(day, 'd')}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Grid Body */}
-                                <div>
-                                    {timeSlots.map((hour) => (
-                                        <div key={hour} className="grid grid-cols-8 border-b border-neutral-800 last:border-b-0 min-h-[100px]">
-                                            {/* Time Column */}
-                                            <div className="p-2 text-right text-xs text-neutral-500 border-r border-neutral-800 sticky left-0 bg-neutral-900 z-10">
-                                                {hour}:00
-                                            </div>
-
-                                            {/* Day Columns */}
-                                            {weekDays.map((day, dayIdx) => {
-                                                // Find appointments for this day and hour
-                                                const slotAppts = filteredAppointments.filter(appt => {
-                                                    const apptDate = parseISO(appt.start_time);
-                                                    return isSameDay(apptDate, day) && apptDate.getHours() === hour;
-                                                });
-
-                                                const TRAINER_COLORS = [
-                                                    { bg: 'bg-blue-500/10', border: 'border-blue-500/20', hover: 'hover:bg-blue-500/20' },
-                                                    { bg: 'bg-green-500/10', border: 'border-green-500/20', hover: 'hover:bg-green-500/20' },
-                                                    { bg: 'bg-purple-500/10', border: 'border-purple-500/20', hover: 'hover:bg-purple-500/20' },
-                                                    { bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', hover: 'hover:bg-yellow-500/20' },
-                                                    { bg: 'bg-pink-500/10', border: 'border-pink-500/20', hover: 'hover:bg-pink-500/20' },
-                                                ];
-
-                                                const getTrainerColor = (trainerId: number) => {
-                                                    const index = trainerId % TRAINER_COLORS.length;
-                                                    const color = TRAINER_COLORS[index];
-                                                    return `${color.bg} ${color.border} ${color.hover}`;
-                                                };
-
+                                    </thead>
+                                    <tbody className="text-sm">
+                                        {filteredAppointments.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="py-8 text-center text-neutral-500">
+                                                    No appointments found for search "{searchQuery}".
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            filteredAppointments.map((appt) => {
+                                                const trainer = trainers.find(t => t.id === appt.trainer_id);
+                                                const date = new Date(appt.start_time);
                                                 return (
-                                                    <div key={dayIdx} className={`p-1 border-r border-neutral-800 last:border-r-0 relative group ${isSameDay(day, new Date()) ? 'bg-blue-500/5' : ''}`}>
-                                                        {slotAppts.map((appt) => {
-                                                            const trainer = trainers.find(t => t.id === appt.trainer_id);
-                                                            return (
-                                                                <div
-                                                                    key={appt.id}
-                                                                    className={`mb-1 p-2 rounded-md border text-xs cursor-pointer transition-colors ${appt.status === 'cancelled'
-                                                                        ? 'bg-red-500/10 border-red-500/20 hover:bg-red-500/20'
-                                                                        : getTrainerColor(appt.trainer_id || 0)
-                                                                        }`}
+                                                    <tr key={appt.id} className="border-b border-neutral-800/50 last:border-0 hover:bg-neutral-800/20 transition-colors">
+                                                        <td className="py-4 text-white font-medium">{trainer?.name || 'Unknown'}</td>
+                                                        <td className="py-4 text-neutral-300">
+                                                            <div className="flex flex-col">
+                                                                <span>{appt.client_name}</span>
+                                                                <span className="text-xs text-neutral-500">{appt.client_email}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-4 text-neutral-300">
+                                                            {date.toLocaleDateString()} at {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </td>
+                                                        <td className="py-4">
+                                                            <span className={`px-2 py-1 rounded text-xs font-bold ${appt.status === 'confirmed' ? 'bg-green-500/20 text-green-400' :
+                                                                appt.status === 'cancelled' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-500'
+                                                                }`}>
+                                                                {appt.status.toUpperCase()}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-4 text-right">
+                                                            {appt.status !== 'cancelled' && (
+                                                                <button
+                                                                    onClick={() => handleCancelAppointment(appt.id)}
+                                                                    className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
+                                                                    title="Cancel Appointment"
                                                                 >
-                                                                    <div className="flex justify-between items-start">
-                                                                        <span className={`font-semibold ${appt.status === 'cancelled' ? 'text-red-400 line-through' : 'text-white'}`}>
-                                                                            {trainer?.name.split(' ')[0]}
-                                                                        </span>
-                                                                        {appt.status !== 'cancelled' && (
-                                                                            <button
-                                                                                onClick={(e) => { e.stopPropagation(); handleCancelAppointment(appt.id); }}
-                                                                                className="text-neutral-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                                title="Cancel"
-                                                                            >
-                                                                                <X className="w-3 h-3" />
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="text-neutral-300 truncate mt-1">
-                                                                        {appt.client_name}
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
+                                                                    <XCircle className="w-4 h-4" />
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                    </tr>
                                                 );
-                                            })}
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl overflow-hidden overflow-x-auto">
+                                <div className="min-w-[800px]">
+                                    {/* Grid Header */}
+                                    <div className="grid grid-cols-8 border-b border-neutral-800">
+                                        <div className="p-4 text-neutral-500 text-xs font-medium border-r border-neutral-800 sticky left-0 bg-neutral-900 z-10">
+                                            Time
                                         </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Report Modal */}
-            {scheduleReport && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                    <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg p-6 max-h-[85vh] overflow-y-auto">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                                <Wand2 className="w-5 h-5 text-purple-500" />
-                                Auto-Schedule Results
-                            </h2>
-                            <button onClick={() => setScheduleReport(null)} className="text-neutral-500 hover:text-white"><X className="w-5 h-5" /></button>
-                        </div>
-
-                        <div className="space-y-6">
-                            {/* Success Stats */}
-                            <div className="flex items-center gap-4 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
-                                <div className="p-2 bg-green-500 rounded-full text-black">
-                                    <CheckCircle className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-green-400 font-bold uppercase">Success</p>
-                                    <p className="text-2xl font-bold text-white">{scheduleReport.success_count} Bookings Created</p>
-                                </div>
-                            </div>
-
-                            {/* Failures List */}
-                            {scheduleReport.failed_assignments.length > 0 ? (
-                                <div>
-                                    <h4 className="text-sm font-bold text-neutral-400 mb-3 uppercase tracking-wider flex items-center gap-2">
-                                        <AlertCircle className="w-4 h-4 text-red-500" />
-                                        Missed Opportunities ({scheduleReport.failed_assignments.length})
-                                    </h4>
-                                    <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
-                                        {scheduleReport.failed_assignments.map((fail: any, idx: number) => (
-                                            <div key={idx} className="p-3 bg-neutral-800/50 border border-neutral-800 rounded-lg text-sm">
-                                                <div className="flex justify-between items-start mb-1">
-                                                    <span className="font-semibold text-white">{fail.client}</span>
-                                                    <span className="text-red-400 font-medium">{fail.slot}</span>
+                                        {weekDays.map((day, idx) => (
+                                            <div key={idx} className={`p-4 text-center border-r border-neutral-800 last:border-r-0 ${isSameDay(day, new Date()) ? 'bg-blue-500/5' : ''}`}>
+                                                <div className={`text-xs font-medium uppercase mb-1 ${isSameDay(day, new Date()) ? 'text-blue-500' : 'text-neutral-500'}`}>
+                                                    {format(day, 'EEE')}
                                                 </div>
-                                                <p className="text-neutral-500 text-xs">{fail.reason}</p>
+                                                <div className={`text-sm font-semibold ${isSameDay(day, new Date()) ? 'text-blue-400' : 'text-white'}`}>
+                                                    {format(day, 'd')}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Grid Body */}
+                                    <div>
+                                        {timeSlots.map((hour) => (
+                                            <div key={hour} className="grid grid-cols-8 border-b border-neutral-800 last:border-b-0 min-h-[100px]">
+                                                {/* Time Column */}
+                                                <div className="p-2 text-right text-xs text-neutral-500 border-r border-neutral-800 sticky left-0 bg-neutral-900 z-10">
+                                                    {hour}:00
+                                                </div>
+
+                                                {/* Day Columns */}
+                                                {weekDays.map((day, dayIdx) => {
+                                                    // Find appointments for this day and hour
+                                                    const slotAppts = filteredAppointments.filter(appt => {
+                                                        const apptDate = parseISO(appt.start_time);
+                                                        return isSameDay(apptDate, day) && apptDate.getHours() === hour;
+                                                    });
+
+                                                    const TRAINER_COLORS = [
+                                                        { bg: 'bg-blue-500/10', border: 'border-blue-500/20', hover: 'hover:bg-blue-500/20' },
+                                                        { bg: 'bg-green-500/10', border: 'border-green-500/20', hover: 'hover:bg-green-500/20' },
+                                                        { bg: 'bg-purple-500/10', border: 'border-purple-500/20', hover: 'hover:bg-purple-500/20' },
+                                                        { bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', hover: 'hover:bg-yellow-500/20' },
+                                                        { bg: 'bg-pink-500/10', border: 'border-pink-500/20', hover: 'hover:bg-pink-500/20' },
+                                                    ];
+
+                                                    const getTrainerColor = (trainerId: number) => {
+                                                        const index = trainerId % TRAINER_COLORS.length;
+                                                        const color = TRAINER_COLORS[index];
+                                                        return `${color.bg} ${color.border} ${color.hover}`;
+                                                    };
+
+                                                    return (
+                                                        <div key={dayIdx} className={`p-1 border-r border-neutral-800 last:border-r-0 relative group ${isSameDay(day, new Date()) ? 'bg-blue-500/5' : ''}`}>
+                                                            {slotAppts.map((appt) => {
+                                                                const trainer = trainers.find(t => t.id === appt.trainer_id);
+                                                                return (
+                                                                    <div
+                                                                        key={appt.id}
+                                                                        className={`mb-1 p-2 rounded-md border text-xs cursor-pointer transition-colors ${appt.status === 'cancelled'
+                                                                            ? 'bg-red-500/10 border-red-500/20 hover:bg-red-500/20'
+                                                                            : getTrainerColor(appt.trainer_id || 0)
+                                                                            }`}
+                                                                    >
+                                                                        <div className="flex justify-between items-start">
+                                                                            <span className={`font-semibold ${appt.status === 'cancelled' ? 'text-red-400 line-through' : 'text-white'}`}>
+                                                                                {trainer?.name.split(' ')[0]}
+                                                                            </span>
+                                                                            {appt.status !== 'cancelled' && (
+                                                                                <button
+                                                                                    onClick={(e) => { e.stopPropagation(); handleCancelAppointment(appt.id); }}
+                                                                                    className="text-neutral-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                                    title="Cancel"
+                                                                                >
+                                                                                    <X className="w-3 h-3" />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-neutral-300 truncate mt-1">
+                                                                            {appt.client_name}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         ))}
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="text-center text-neutral-500 py-4">
-                                    All requested slots were successfully booked!
-                                </div>
-                            )}
+                            </div>
+                        )}
+                    </div>
+                )
+            }
 
-                            {/* AI Resolution Section - AUTOMATIC */}
-                            {scheduleReport.resolved_count > 0 && (
-                                <div className="mt-6 border-t border-neutral-800 pt-6 animate-in slide-in-from-bottom-2 fade-in">
-                                    <h4 className="text-sm font-bold text-green-400 mb-3 uppercase tracking-wider flex items-center gap-2">
-                                        <BrainCircuit className="w-4 h-4" />
-                                        AI Resolution Results
-                                    </h4>
-                                    <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl mb-4">
-                                        <p className="text-xl font-bold text-white mb-1">{scheduleReport.resolved_count} Conflicts Resolved</p>
-                                        <p className="text-xs text-neutral-400">Alternative slots found and automatically booked.</p>
+            {/* Report Modal */}
+            {
+                scheduleReport && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg p-6 max-h-[85vh] overflow-y-auto">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <Wand2 className="w-5 h-5 text-purple-500" />
+                                    Auto-Schedule Results
+                                </h2>
+                                <button onClick={() => setScheduleReport(null)} className="text-neutral-500 hover:text-white"><X className="w-5 h-5" /></button>
+                            </div>
+
+                            <div className="space-y-6">
+                                {/* Success Stats */}
+                                <div className="flex items-center gap-4 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
+                                    <div className="p-2 bg-green-500 rounded-full text-black">
+                                        <CheckCircle className="w-6 h-6" />
                                     </div>
-                                    {scheduleReport.resolution_details && scheduleReport.resolution_details.length > 0 && (
-                                        <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
-                                            {scheduleReport.resolution_details.map((det: any, idx: number) => (
-                                                <div key={idx} className="p-2 text-sm border-l-2 border-green-500 pl-3 bg-neutral-800/30 rounded-r-md">
-                                                    <div className="flex justify-between text-neutral-300 mb-1">
-                                                        <span>{det.client.split('@')[0]}</span>
-                                                        <span className="text-xs text-neutral-500">{det.trainer}</span>
+                                    <div>
+                                        <p className="text-sm text-green-400 font-bold uppercase">Success</p>
+                                        <p className="text-2xl font-bold text-white">{scheduleReport.success_count} Bookings Created</p>
+                                    </div>
+                                </div>
+
+                                {/* Failures List */}
+                                {scheduleReport.failed_assignments.length > 0 ? (
+                                    <div>
+                                        <h4 className="text-sm font-bold text-neutral-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                                            <AlertCircle className="w-4 h-4 text-red-500" />
+                                            Missed Opportunities ({scheduleReport.failed_assignments.length})
+                                        </h4>
+                                        <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                                            {scheduleReport.failed_assignments.map((fail: any, idx: number) => (
+                                                <div key={idx} className="p-3 bg-neutral-800/50 border border-neutral-800 rounded-lg text-sm">
+                                                    <div className="flex justify-between items-start mb-1">
+                                                        <span className="font-semibold text-white">{fail.client}</span>
+                                                        <span className="text-red-400 font-medium">{fail.slot}</span>
                                                     </div>
-                                                    <div className="flex items-center gap-2 text-xs">
-                                                        <span className="line-through text-red-400/70">{det.original_slot}</span>
-                                                        <span>→</span>
-                                                        <span className="text-green-400 font-bold">{det.new_slot}</span>
-                                                    </div>
+                                                    <p className="text-neutral-500 text-xs">{fail.reason}</p>
                                                 </div>
                                             ))}
                                         </div>
-                                    )}
-                                </div>
-                            )}
+                                    </div>
+                                ) : (
+                                    <div className="text-center text-neutral-500 py-4">
+                                        All requested slots were successfully booked!
+                                    </div>
+                                )}
 
-                            <button
-                                onClick={() => setScheduleReport(null)}
-                                className="w-full py-3 bg-neutral-800 text-white font-bold rounded-lg hover:bg-neutral-700 transition-colors mt-2"
-                            >
-                                Close Report
-                            </button>
+                                {/* AI Resolution Section - AUTOMATIC */}
+                                {scheduleReport.resolved_count > 0 && (
+                                    <div className="mt-6 border-t border-neutral-800 pt-6 animate-in slide-in-from-bottom-2 fade-in">
+                                        <h4 className="text-sm font-bold text-green-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                                            <BrainCircuit className="w-4 h-4" />
+                                            AI Resolution Results
+                                        </h4>
+                                        <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl mb-4">
+                                            <p className="text-xl font-bold text-white mb-1">{scheduleReport.resolved_count} Conflicts Resolved</p>
+                                            <p className="text-xs text-neutral-400">Alternative slots found and automatically booked.</p>
+                                        </div>
+                                        {scheduleReport.resolution_details && scheduleReport.resolution_details.length > 0 && (
+                                            <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                                {scheduleReport.resolution_details.map((det: any, idx: number) => (
+                                                    <div key={idx} className="p-2 text-sm border-l-2 border-green-500 pl-3 bg-neutral-800/30 rounded-r-md">
+                                                        <div className="flex justify-between text-neutral-300 mb-1">
+                                                            <span>{det.client.split('@')[0]}</span>
+                                                            <span className="text-xs text-neutral-500">{det.trainer}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 text-xs">
+                                                            <span className="line-through text-red-400/70">{det.original_slot}</span>
+                                                            <span>→</span>
+                                                            <span className="text-green-400 font-bold">{det.new_slot}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => setScheduleReport(null)}
+                                    className="w-full py-3 bg-neutral-800 text-white font-bold rounded-lg hover:bg-neutral-700 transition-colors mt-2"
+                                >
+                                    Close Report
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }
