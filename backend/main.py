@@ -5,8 +5,17 @@ from typing import List
 
 import models, schemas
 from database import engine, get_db
+from auto_migrate import run_auto_migrations
 
+# Run simple migrations before creating tables (or after, depending on preference, but before app start)
+# create_all only creates missing tables, doesn't update.
+# We run migrations first IF tables exist, or after? 
+# Safest is to let create_all run first to ensure tables exist, THEN migrate?
+# But if tables don't exist, create_all makes them with NEW schema.
+# So we only need to migrate if tables ALREADY exist but are old.
+# Let's run create_all first, then check columns.
 models.Base.metadata.create_all(bind=engine)
+run_auto_migrations(engine)
 
 import logging
 
