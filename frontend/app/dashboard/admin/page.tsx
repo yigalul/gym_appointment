@@ -1,8 +1,8 @@
 'use client';
 
-import { getTrainers, getUsers, createTrainerUser, deleteTrainer, createClientUser, updateClientUser, deleteUser, getAppointments, cancelAppointment, autoScheduleWeek, clearWeekAppointments, sendAdminWhatsApp, getSystemWeek, updateSystemWeek } from '@/lib/store';
+import { getTrainers, getUsers, createTrainerUser, deleteTrainer, createClientUser, updateClientUser, deleteUser, getAppointments, cancelAppointment, autoScheduleWeek, clearWeekAppointments, sendAdminWhatsApp, getSystemWeek, updateSystemWeek, autoResolveConflicts } from '@/lib/store';
 import { User, Trainer, Appointment } from '@/lib/types';
-import { Users, UserPlus, Trash2, Plus, X, Pencil, Calendar, XCircle, Search, ChevronLeft, ChevronRight, Wand2, AlertCircle, CheckCircle, RotateCcw } from 'lucide-react';
+import { Users, UserPlus, Trash2, Plus, X, Pencil, Calendar, XCircle, Search, ChevronLeft, ChevronRight, Wand2, AlertCircle, CheckCircle, RotateCcw, BrainCircuit } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { startOfWeek, endOfWeek, eachDayOfInterval, format, addDays, subDays, isSameDay, parseISO, startOfDay } from 'date-fns';
 
@@ -72,7 +72,9 @@ export default function AdminDashboardPage() {
 
     // Auto-Schedule Report State
     const [scheduleReport, setScheduleReport] = useState<{ success_count: number; failed_assignments: any[] } | null>(null);
+    const [resolveReport, setResolveReport] = useState<{ resolved_count: number; details: any[] } | null>(null);
     const [isScheduling, setIsScheduling] = useState(false);
+    const [isResolving, setIsResolving] = useState(false);
     const [hasLastReport, setHasLastReport] = useState(false);
 
     useEffect(() => {
@@ -250,6 +252,7 @@ export default function AdminDashboardPage() {
 
         setConfirmSchedule(false);
         setIsScheduling(true);
+        setResolveReport(null); // Clear previous resolve report
         const result = await autoScheduleWeek(format(currentWeekStart, 'yyyy-MM-dd'));
         setIsScheduling(false);
 
@@ -262,6 +265,21 @@ export default function AdminDashboardPage() {
             refreshData();
         } else {
             setErrorMsg('Failed to run auto-scheduler.');
+        }
+    };
+
+
+    const handleAutoResolve = async () => {
+        if (!currentWeekStart) return;
+        setIsResolving(true);
+        const result = await autoResolveConflicts(format(currentWeekStart, 'yyyy-MM-dd'));
+        setIsResolving(false);
+
+        if (result) {
+            setResolveReport(result);
+            refreshData();
+        } else {
+            alert("Failed to run auto-resolver");
         }
     };
 
@@ -1027,7 +1045,7 @@ export default function AdminDashboardPage() {
             {/* Report Modal */}
             {scheduleReport && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                    <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg p-6 max-h-[80vh] overflow-y-auto">
+                    <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-lg p-6 max-h-[85vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold text-white flex items-center gap-2">
                                 <Wand2 className="w-5 h-5 text-purple-500" />
@@ -1037,6 +1055,7 @@ export default function AdminDashboardPage() {
                         </div>
 
                         <div className="space-y-6">
+                            {/* Success Stats */}
                             <div className="flex items-center gap-4 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
                                 <div className="p-2 bg-green-500 rounded-full text-black">
                                     <CheckCircle className="w-6 h-6" />
@@ -1047,13 +1066,14 @@ export default function AdminDashboardPage() {
                                 </div>
                             </div>
 
+                            {/* Failures List */}
                             {scheduleReport.failed_assignments.length > 0 ? (
                                 <div>
                                     <h4 className="text-sm font-bold text-neutral-400 mb-3 uppercase tracking-wider flex items-center gap-2">
                                         <AlertCircle className="w-4 h-4 text-red-500" />
                                         Missed Opportunities ({scheduleReport.failed_assignments.length})
                                     </h4>
-                                    <div className="space-y-2">
+                                    <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
                                         {scheduleReport.failed_assignments.map((fail, idx) => (
                                             <div key={idx} className="p-3 bg-neutral-800/50 border border-neutral-800 rounded-lg text-sm">
                                                 <div className="flex justify-between items-start mb-1">
@@ -1071,9 +1091,51 @@ export default function AdminDashboardPage() {
                                 </div>
                             )}
 
+                            {/* AI Resolution Section */}
+                            {!resolveReport ? (
+                                scheduleReport.failed_assignments.length > 0 && (
+                                    <button
+                                        onClick={handleAutoResolve}
+                                        disabled={isResolving}
+                                        className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 mt-2 shadow-lg shadow-purple-900/20"
+                                    >
+                                        <BrainCircuit className="w-5 h-5" />
+                                        {isResolving ? 'AI Resolving...' : 'Resolve Conflicts with AI'}
+                                    </button>
+                                )
+                            ) : (
+                                <div className="mt-6 border-t border-neutral-800 pt-6 animate-in slide-in-from-bottom-2 fade-in">
+                                    <h4 className="text-sm font-bold text-green-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                                        <BrainCircuit className="w-4 h-4" />
+                                        AI Resolution Results
+                                    </h4>
+                                    <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl mb-4">
+                                        <p className="text-xl font-bold text-white mb-1">{resolveReport.resolved_count} Conflicts Resolved</p>
+                                        <p className="text-xs text-neutral-400">Alternative slots found and booked.</p>
+                                    </div>
+                                    {resolveReport.details.length > 0 && (
+                                        <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                            {resolveReport.details.map((det, idx) => (
+                                                <div key={idx} className="p-2 text-sm border-l-2 border-green-500 pl-3 bg-neutral-800/30 rounded-r-md">
+                                                    <div className="flex justify-between text-neutral-300 mb-1">
+                                                        <span>{det.client.split('@')[0]}</span>
+                                                        <span className="text-xs text-neutral-500">{det.trainer}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-xs">
+                                                        <span className="line-through text-red-400/70">{det.original_slot}</span>
+                                                        <span>→</span>
+                                                        <span className="text-green-400 font-bold">{det.new_slot}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             <button
                                 onClick={() => setScheduleReport(null)}
-                                className="w-full py-3 bg-neutral-800 text-white font-bold rounded-lg hover:bg-neutral-700 transition-colors"
+                                className="w-full py-3 bg-neutral-800 text-white font-bold rounded-lg hover:bg-neutral-700 transition-colors mt-2"
                             >
                                 Close Report
                             </button>

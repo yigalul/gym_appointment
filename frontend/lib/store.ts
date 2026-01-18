@@ -447,7 +447,21 @@ export async function sendAdminWhatsApp(userId: number, message: string): Promis
         if (!res.ok) throw new Error('Failed to send message');
         return true;
     } catch (error) {
-        console.error(error);
         return false;
+    }
+}
+
+export async function autoResolveConflicts(weekStartDate: string): Promise<{ resolved_count: number; details: any[] } | null> {
+    try {
+        const res = await fetch(`${API_Base}/appointments/auto-resolve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ week_start_date: weekStartDate })
+        });
+        if (!res.ok) throw new Error('Failed to run auto-resolve');
+        return res.json();
+    } catch (error) {
+        console.error(error);
+        return null;
     }
 }

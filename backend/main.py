@@ -777,9 +777,51 @@ def auto_schedule_week(payload: dict, db: Session = Depends(get_db)):
             # Committing per booking is safer for MVP logic Correctness check re-runs.
             db.commit() 
             
+    # Post-Processing: Separate Critical vs Non-Critical Failures
+    # Critical = User has < weekly_workout_limit bookings
+    # Non-Critical = User met limit despite some slot failures
+    
+    critical_failures = []
+    non_critical_failures = []
+    
+    # We need to re-check final booking counts for failed users
+    # Optimization: We tracked 'bookings_this_week' in the loop, but it was per client iteration.
+    # Simple way: Group failures by client email.
+    
+    temp_fail_map = {} # email -> list of failures
+    for f in failed_assignments:
+        email = f['client']
+        if email not in temp_fail_map: temp_fail_map[email] = []
+        temp_fail_map[email].append(f)
+        
+    for client in clients:
+        email = client.email
+        if email not in temp_fail_map: continue
+        
+        # Check current status
+        week_end_date = week_start + timedelta(days=7)
+        final_count = db.query(models.Appointment).filter(
+            models.Appointment.client_id == client.id,
+            models.Appointment.start_time >= week_start.isoformat(),
+            models.Appointment.start_time < week_end_date.isoformat(),
+            models.Appointment.status != 'cancelled'
+        ).count()
+        
+        if final_count < client.weekly_workout_limit:
+            # All failures for this client are critical (contributed to missing goal)
+            # Add 'missing_count' to help resolver
+            missing = client.weekly_workout_limit - final_count
+            for fail in temp_fail_map[email]:
+                fail['missing_count'] = missing
+                critical_failures.append(fail)
+        else:
+            non_critical_failures.extend(temp_fail_map[email])
+
     return {
         "success_count": success_count,
-        "failed_assignments": failed_assignments
+        "failed_assignments": critical_failures, # Only return critical ones for action? Or both?
+        "non_critical_failures": non_critical_failures,
+        "total_failures": len(failed_assignments)
     }
 
 @app.get("/users/{user_id}/notifications", response_model=List[schemas.Notification])
@@ -857,3 +899,180 @@ def send_admin_message(request: schemas.AdminMessageRequest, db: Session = Depen
         return {"message": "WhatsApp sent successfully"}
     else:
         raise HTTPException(status_code=500, detail="Failed to send WhatsApp")
+
+@app.post("/appointments/auto-resolve", response_model=dict)
+def auto_resolve_conflicts(payload: dict, db: Session = Depends(get_db)):
+    # Payload: { "week_start_date": "YYYY-MM-DD" }
+    from datetime import datetime, timedelta
+    
+    try:
+        week_start = datetime.fromisoformat(payload.get("week_start_date"))
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid week_start_date format.")
+
+    week_end = week_start + timedelta(days=7)
+    
+    # 1. Identify Under-Booked Clients (Critical Failures)
+    clients = db.query(models.User).filter(models.User.role == "client").all()
+    
+    resolved_count = 0
+    resolved_details = []
+    
+    for client in clients:
+        if client.workout_credits <= 0:
+            continue
+            
+        # Check current bookings
+        current_bookings_count = db.query(models.Appointment).filter(
+            models.Appointment.client_id == client.id,
+            models.Appointment.start_time >= week_start.isoformat(),
+            models.Appointment.start_time < week_end.isoformat(),
+            models.Appointment.status != 'cancelled'
+        ).count()
+        
+        missing_slots = client.weekly_workout_limit - current_bookings_count
+        
+        if missing_slots <= 0:
+            continue
+            
+        # Try to resolve 'missing_slots' times
+        
+        # Get booked slots to know which defaults were successful
+        booked_appts = db.query(models.Appointment).filter(
+            models.Appointment.client_id == client.id,
+            models.Appointment.start_time >= week_start.isoformat(),
+            models.Appointment.start_time < week_end.isoformat(),
+            models.Appointment.status != 'cancelled'
+        ).all()
+        
+        booked_times = [datetime.fromisoformat(a.start_time) for a in booked_appts]
+        
+        if not client.default_slots:
+            continue
+            
+        for slot in client.default_slots:
+            if missing_slots <= 0 or client.workout_credits <= 0:
+                break
+                
+            # Check if this specific default slot was booked
+            # Based on seeding/logic, default slots are 'generic day' but mapped to specific date by auto-schedule
+            # Week start is assumed Monday? 
+            # Our auto-schedule uses: target_date = week_start + timedelta(days=slot.day_of_week)   
+            
+            target_date = week_start + timedelta(days=slot.day_of_week)   
+            slot_iso_base = f"{target_date.strftime('%Y-%m-%d')}T{slot.start_time}:00"
+            
+            # Is this exact slot booked?
+            is_booked = any(bt.isoformat() == slot_iso_base for bt in booked_times)
+            if is_booked:
+                continue
+                
+            # This slot failed (not booked). Try to find alternative for THIS slot.
+            # Alternatives strategy:
+            # 1. Same Day, +/- 1 hour, +/- 2 hours
+            # 2. Next Day, Same Time
+            
+            alternatives = []
+            try:
+                base_dt = datetime.fromisoformat(slot_iso_base)
+            except ValueError:
+                continue 
+
+            # Offsets in hours
+            offsets = [1, -1, 2, -2] 
+            for off in offsets:
+                alt = base_dt + timedelta(hours=off)
+                # Keep within 06:00 to 22:00
+                if 6 <= alt.hour <= 21:
+                    alternatives.append(alt)
+            
+            # Next day same time
+            alternatives.append(base_dt + timedelta(days=1))
+            
+            # Try to book one of these alternatives
+            booked_alt = False
+            for alt_dt in alternatives:
+                alt_iso = alt_dt.isoformat()
+                
+                # Check if client already booked this alt time (conflict with self)
+                if any(bt == alt_dt for bt in booked_times):
+                    continue
+                
+                # --- Availability Check ---
+                
+                # 1. Gym Capacity (Global)
+                active_trainers_count = db.query(models.Appointment.trainer_id).filter(
+                    models.Appointment.start_time == alt_iso,
+                    models.Appointment.status != "cancelled"
+                ).distinct().count()
+                
+                # Find trainer
+                available_trainers = []
+                all_trainers = db.query(models.Trainer).all()
+                
+                alt_doy = alt_dt.weekday() # 0=Monday
+                alt_time_str = alt_dt.strftime("%H:%M")
+                
+                for trainer in all_trainers:
+                    # Shift Check
+                    is_working = False
+                    for av in trainer.availabilities:
+                        if av.day_of_week == alt_doy:
+                             if av.start_time <= alt_time_str and av.end_time > alt_time_str:
+                                is_working = True
+                                break
+                    if not is_working: continue
+                    
+                    # Capacity Check
+                    current_clients = db.query(models.Appointment).filter(
+                        models.Appointment.trainer_id == trainer.id,
+                        models.Appointment.start_time == alt_iso,
+                        models.Appointment.status != "cancelled"
+                    ).count()
+                    if current_clients >= 2: continue
+                    
+                    # Global Constraint
+                    is_active = current_clients > 0
+                    if not is_active and active_trainers_count >= 3: continue
+                    
+                    available_trainers.append(trainer)
+                    
+                if available_trainers:
+                    # Book it!
+                    selected_trainer = available_trainers[0]
+                    new_appt = models.Appointment(
+                        trainer_id=selected_trainer.id,
+                        client_id=client.id,
+                        client_name=client.email.split('@')[0],
+                        client_email=client.email,
+                        start_time=alt_iso,
+                        status="confirmed"
+                    )
+                    db.add(new_appt)
+                    
+                    client.workout_credits -= 1
+                    missing_slots -= 1
+                    current_bookings_count += 1
+                    booked_times.append(alt_dt) # Prevent double booking same time
+                    
+                    resolved_count += 1
+                    resolved_details.append({
+                        "client": client.email,
+                        "original_slot": f"{target_date.strftime('%a')} {slot.start_time}",
+                        "new_slot": f"{alt_dt.strftime('%A %H:%M')}",
+                        "trainer": selected_trainer.name
+                    })
+                    
+                    db.commit()
+                    booked_alt = True
+                    break # Stop looking for alternatives for THIS slot
+            
+            if booked_alt:
+                # If we filled a slot, we check the next default slot loop
+                pass
+
+    return {
+        "resolved_count": resolved_count,
+        "details": resolved_details
+    }
