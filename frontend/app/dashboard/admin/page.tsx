@@ -71,10 +71,8 @@ export default function AdminDashboardPage() {
     const [slotHour, setSlotHour] = useState(9); // 0-23
 
     // Auto-Schedule Report State
-    const [scheduleReport, setScheduleReport] = useState<{ success_count: number; failed_assignments: any[] } | null>(null);
-    const [resolveReport, setResolveReport] = useState<{ resolved_count: number; details: any[] } | null>(null);
+    const [scheduleReport, setScheduleReport] = useState<any | null>(null); // Type 'any' for now to support dynamic fields
     const [isScheduling, setIsScheduling] = useState(false);
-    const [isResolving, setIsResolving] = useState(false);
     const [hasLastReport, setHasLastReport] = useState(false);
 
     useEffect(() => {
@@ -252,7 +250,6 @@ export default function AdminDashboardPage() {
 
         setConfirmSchedule(false);
         setIsScheduling(true);
-        setResolveReport(null); // Clear previous resolve report
         const result = await autoScheduleWeek(format(currentWeekStart, 'yyyy-MM-dd'));
         setIsScheduling(false);
 
@@ -269,19 +266,7 @@ export default function AdminDashboardPage() {
     };
 
 
-    const handleAutoResolve = async () => {
-        if (!currentWeekStart) return;
-        setIsResolving(true);
-        const result = await autoResolveConflicts(format(currentWeekStart, 'yyyy-MM-dd'));
-        setIsResolving(false);
 
-        if (result) {
-            setResolveReport(result);
-            refreshData();
-        } else {
-            alert("Failed to run auto-resolver");
-        }
-    };
 
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -1074,7 +1059,7 @@ export default function AdminDashboardPage() {
                                         Missed Opportunities ({scheduleReport.failed_assignments.length})
                                     </h4>
                                     <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
-                                        {scheduleReport.failed_assignments.map((fail, idx) => (
+                                        {scheduleReport.failed_assignments.map((fail: any, idx: number) => (
                                             <div key={idx} className="p-3 bg-neutral-800/50 border border-neutral-800 rounded-lg text-sm">
                                                 <div className="flex justify-between items-start mb-1">
                                                     <span className="font-semibold text-white">{fail.client}</span>
@@ -1091,31 +1076,20 @@ export default function AdminDashboardPage() {
                                 </div>
                             )}
 
-                            {/* AI Resolution Section */}
-                            {!resolveReport ? (
-                                scheduleReport.failed_assignments.length > 0 && (
-                                    <button
-                                        onClick={handleAutoResolve}
-                                        disabled={isResolving}
-                                        className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 mt-2 shadow-lg shadow-purple-900/20"
-                                    >
-                                        <BrainCircuit className="w-5 h-5" />
-                                        {isResolving ? 'AI Resolving...' : 'Resolve Conflicts with AI'}
-                                    </button>
-                                )
-                            ) : (
+                            {/* AI Resolution Section - AUTOMATIC */}
+                            {scheduleReport.resolved_count > 0 && (
                                 <div className="mt-6 border-t border-neutral-800 pt-6 animate-in slide-in-from-bottom-2 fade-in">
                                     <h4 className="text-sm font-bold text-green-400 mb-3 uppercase tracking-wider flex items-center gap-2">
                                         <BrainCircuit className="w-4 h-4" />
                                         AI Resolution Results
                                     </h4>
                                     <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl mb-4">
-                                        <p className="text-xl font-bold text-white mb-1">{resolveReport.resolved_count} Conflicts Resolved</p>
-                                        <p className="text-xs text-neutral-400">Alternative slots found and booked.</p>
+                                        <p className="text-xl font-bold text-white mb-1">{scheduleReport.resolved_count} Conflicts Resolved</p>
+                                        <p className="text-xs text-neutral-400">Alternative slots found and automatically booked.</p>
                                     </div>
-                                    {resolveReport.details.length > 0 && (
+                                    {scheduleReport.resolution_details && scheduleReport.resolution_details.length > 0 && (
                                         <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
-                                            {resolveReport.details.map((det, idx) => (
+                                            {scheduleReport.resolution_details.map((det: any, idx: number) => (
                                                 <div key={idx} className="p-2 text-sm border-l-2 border-green-500 pl-3 bg-neutral-800/30 rounded-r-md">
                                                     <div className="flex justify-between text-neutral-300 mb-1">
                                                         <span>{det.client.split('@')[0]}</span>

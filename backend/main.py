@@ -817,9 +817,19 @@ def auto_schedule_week(payload: dict, db: Session = Depends(get_db)):
         else:
             non_critical_failures.extend(temp_fail_map[email])
 
+    # --- AUTOMATIC SMART RESOLUTION ---
+    # Automatically try to fix critical failures using Blocker Shifting
+    resolution_result = resolve_conflicts_internal(db, week_start)
+    
+    # Update success count
+    total_success = success_count + resolution_result['resolved_count']
+
     return {
-        "success_count": success_count,
-        "failed_assignments": critical_failures, # Only return critical ones for action? Or both?
+        "success_count": total_success,
+        "initial_success_count": success_count,
+        "resolved_count": resolution_result['resolved_count'],
+        "failed_assignments": critical_failures, 
+        "resolution_details": resolution_result['details'],
         "non_critical_failures": non_critical_failures,
         "total_failures": len(failed_assignments)
     }
@@ -900,28 +910,14 @@ def send_admin_message(request: schemas.AdminMessageRequest, db: Session = Depen
     else:
         raise HTTPException(status_code=500, detail="Failed to send WhatsApp")
 
-@app.post("/appointments/auto-resolve", response_model=dict)
-def auto_resolve_conflicts(payload: dict, db: Session = Depends(get_db)):
-    # Payload: { "week_start_date": "YYYY-MM-DD" }
-    from datetime import datetime, timedelta
-    
-    try:
-        week_start = datetime.fromisoformat(payload.get("week_start_date"))
-        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid week_start_date format.")
 
+def resolve_conflicts_internal(db: Session, week_start: datetime):
     week_end = week_start + timedelta(days=7)
-    
-    # 1. Identify Under-Booked Clients (Critical Failures)
     clients = db.query(models.User).filter(models.User.role == "client").all()
     
     resolved_count = 0
     resolved_details = []
-    
-    # Pre-fetch all appointments for the week for efficiency? 
-    # For now, querying inside loop is safer to get latest state after swaps.
-    
+
     for client in clients:
         if client.workout_credits <= 0:
             continue
@@ -941,7 +937,6 @@ def auto_resolve_conflicts(payload: dict, db: Session = Depends(get_db)):
         if not client.default_slots:
             continue
             
-        # Get list of booked slots for this client to avoid duplicates
         booked_appts = db.query(models.Appointment).filter(
             models.Appointment.client_id == client.id,
             models.Appointment.start_time >= week_start.isoformat(),
@@ -950,51 +945,35 @@ def auto_resolve_conflicts(payload: dict, db: Session = Depends(get_db)):
         ).all()
         booked_times = [datetime.fromisoformat(a.start_time) for a in booked_appts]
 
-        # Iterate through default slots to find UNFULFILLED ones
         for slot in client.default_slots:
             if missing_slots <= 0 or client.workout_credits <= 0:
                 break
                 
             target_date = week_start + timedelta(days=slot.day_of_week)
-            # Slot Timestamp
             slot_iso = f"{target_date.strftime('%Y-%m-%d')}T{slot.start_time}:00"
             slot_dt = datetime.fromisoformat(slot_iso)
             
-            # Skip if already booked
             if any(bt == slot_dt for bt in booked_times):
                 continue
                 
-            # --- BLOCKER SHIFTING LOGIC ---
-            # 1. Who is blocking this slot?
             blockers = db.query(models.Appointment).filter(
                 models.Appointment.start_time == slot_iso,
                 models.Appointment.status != 'cancelled'
             ).all()
             
-            # If slot is actually empty (available), we should just book it!
-            # But auto-schedule failed, so it implies it was full or no trainer.
-            # Let's check if it's full.
-            
-            # Check availability normally first (maybe someone cancelled?)
-            # ... (Skipping simple check for now, assuming conflict exists)
-            
-            # 2. Iterate Blockers and try to MOVE them
             slot_resolved = False
             for blocker_appt in blockers:
                 blocker_user = db.query(models.User).filter(models.User.id == blocker_appt.client_id).first()
                 if not blocker_user or not blocker_user.default_slots:
                     continue
                 
-                # Check Blocker's OTHER default slots
                 for b_slot in blocker_user.default_slots:
                     b_target_date = week_start + timedelta(days=b_slot.day_of_week)
                     b_slot_iso = f"{b_target_date.strftime('%Y-%m-%d')}T{b_slot.start_time}:00"
                     
-                    # Must be a DIFFERENT slot
                     if b_slot_iso == slot_iso:
                         continue
                         
-                    # Check if Blocker is ALREADY booked at this other time
                     is_blocker_busy = db.query(models.Appointment).filter(
                         models.Appointment.client_id == blocker_user.id,
                         models.Appointment.start_time == b_slot_iso,
@@ -1003,8 +982,6 @@ def auto_resolve_conflicts(payload: dict, db: Session = Depends(get_db)):
                     if is_blocker_busy:
                         continue
                         
-                    # Check if this ALT slot is OPEN (Capacity/Trainer)
-                    # -- Availability Check Start --
                     active_trainers_count = db.query(models.Appointment.trainer_id).filter(
                         models.Appointment.start_time == b_slot_iso,
                         models.Appointment.status != "cancelled"
@@ -1017,7 +994,6 @@ def auto_resolve_conflicts(payload: dict, db: Session = Depends(get_db)):
                     b_alt_time_str = b_alt_dt.strftime("%H:%M")
                     
                     for trainer in all_trainers:
-                        # Shift Check
                         is_working = False
                         for av in trainer.availabilities:
                             if av.day_of_week == b_alt_doy:
@@ -1026,7 +1002,6 @@ def auto_resolve_conflicts(payload: dict, db: Session = Depends(get_db)):
                                     break
                         if not is_working: continue
                         
-                        # Capacity Check
                         current_clients = db.query(models.Appointment).filter(
                             models.Appointment.trainer_id == trainer.id,
                             models.Appointment.start_time == b_slot_iso,
@@ -1034,98 +1009,55 @@ def auto_resolve_conflicts(payload: dict, db: Session = Depends(get_db)):
                         ).count()
                         if current_clients >= 2: continue
                         
-                        # Global Constraint
                         is_active = current_clients > 0
                         if not is_active and active_trainers_count >= 3: continue
                         
                         available_trainers.append(trainer)
-                    # -- Availability Check End --
 
                     if available_trainers:
-                        # Found a valid move for Blocker!
-                        # 1. Update Blocker Appt
-                        new_trainer = available_trainers[0] # Just pick first valid
+                        new_trainer = available_trainers[0]
+                        vacated_trainer_id = blocker_appt.trainer_id # Capture BEFORE update
                         
-                        old_slot_str = blocker_appt.start_time # For record
-                        
-                        blocker_appt.start_time = b_slot_iso
-                        blocker_appt.trainer_id = new_trainer.id 
-                        # We don't change status, just time/trainer
-                        
-                        # 2. Book Victim in the NOW FREED slot_iso
-                        # We need to find a trainer for the Victim at slot_iso
-                        # Since we just moved a blocker, at least the Blocker's OLD trainer is available (capacity-wise)
-                        # But we should re-verify strictly to be safe.
-                        
-                        # Re-run avail check for Victim at slot_iso
-                        # ... (Simplified: use the blocker's old trainer if possible, or search)
-                        
-                        # Since we are inside the transaction, the DB query for `current_clients` won't reflect the change 
-                        # until we flush? Or we can just assume it works because we decremented by moving.
-                        # Using `new_appt` with `blocker_appt` trainer?
-                        
-                        # Let's try to assign Victim to Blocker's OLD trainer (if suitable) or any available.
-                        # Search trainers for VICTIM at slot_iso
-                        # Note: We must NOT count the blocker we just moved.
-                        # But since we haven't committed, DB still sees blocker.
-                        # Workaround: explicitly ignore blocker_appt.id in count queries? 
-                        # OR: just assign to the same trainer ID the blocker vacated?
-                        
-                        # Risky if that trainer has constraints. But blocker was there, so trainer was working.
-                        # Only risk is if victim has some other constraint? No.
-                        # So assigning to vacated trainer is safe.
-                        
-                        vacated_trainer_id = blocker_appt.trainer_id # Wait, we updated the object above!
-                        # Creating a new object for victim?
-                        
-                        # Wait, `blocker_appt.trainer_id` is already updated in memory to `new_trainer.id`.
-                        # I should have saved the old ID first.
-                        
-                        # RE-LOGIC:
-                        # Save old state
-                        old_trainer_id = blocker_appt.trainer_id
-                        
-                        # Update Blocker
+                        # Move Blocker
                         blocker_appt.start_time = b_slot_iso
                         blocker_appt.trainer_id = new_trainer.id
-                        db.add(blocker_appt) # Stage update
                         
                         # Book Victim
                         victim_appt = models.Appointment(
-                            trainer_id=old_trainer_id, # Take the spot
+                            trainer_id=vacated_trainer_id, # Take the spot!
                             client_id=client.id,
-                            client_name=client.email.split('@')[0],
+                            client_name=client.first_name,
                             client_email=client.email,
                             start_time=slot_iso,
                             status="confirmed"
                         )
                         db.add(victim_appt)
-                        
                         client.workout_credits -= 1
-                        missing_slots -= 1
-                        booked_times.append(slot_dt)
                         
                         resolved_count += 1
+                        missing_slots -= 1
                         resolved_details.append({
                             "client": client.email,
                             "original_slot": f"Blocked by {blocker_user.email}",
-                            "new_slot": f"{slot_dt.strftime('%A %H:%M')}",
+                            "new_slot": f"{target_date.strftime('%A')} {slot.start_time}",
                             "trainer": "Swapped w/ Blocker",
-                            "notes": f"Moved {blocker_user.email} to {b_alt_dt.strftime('%A %H:%M')}"
+                            "notes": f"Moved {blocker_user.email} to {b_target_date.strftime('%A')} {b_slot.start_time}"
                         })
                         
                         db.commit()
                         slot_resolved = True
-                        break # Break Blocker Loop
-                
-                if slot_resolved:
-                    break # Break Blocker List Loop
-            
-            if slot_resolved:
-                # Check next default slot
-                pass
+                        break 
+                if slot_resolved: break
 
-    return {
-        "resolved_count": resolved_count,
-        "details": resolved_details
-    }
+    return {"resolved_count": resolved_count, "details": resolved_details}
+
+@app.post("/appointments/auto-resolve", response_model=dict)
+def auto_resolve_conflicts(payload: dict, db: Session = Depends(get_db)):
+    from datetime import datetime
+    try:
+        week_start = datetime.fromisoformat(payload.get("week_start_date"))
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid week_start_date format.")
+        
+    return resolve_conflicts_internal(db, week_start)
